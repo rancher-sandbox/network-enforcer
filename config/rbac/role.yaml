@@ -19,19 +19,11 @@ rules:
   resources:
   - networkpolicyproposals
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
   - update
   - watch
-- apiGroups:
-  - security.security.rancher.io
-  resources:
-  - networkpolicyproposals/finalizers
-  verbs:
-  - update
 - apiGroups:
   - security.security.rancher.io
   resources:
