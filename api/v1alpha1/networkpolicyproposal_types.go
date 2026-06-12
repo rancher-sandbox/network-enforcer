@@ -17,61 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-type WorkloadReference struct {
-	// kind is the workload kind (Deployment, StatefulSet, or DaemonSet).
-	// +kubebuilder:validation:Enum=Deployment;StatefulSet;DaemonSet
-	Kind string `json:"kind"`
-
-	// name is the workload name.
-	Name string `json:"name"`
-}
-
-type PolicyPeer struct {
-	// workload identifies a Kubernetes workload peer.
-	// +optional
-	Workload *WorkloadReference `json:"workload,omitempty"`
-
-	// namespace is the namespace of the peer workload.
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
-
-	// cidr identifies an external peer by IP range (e.g. "10.0.0.1/32").
-	// +optional
-	CIDR string `json:"cidr,omitempty"`
-}
-
-type PortRule struct {
-	// protocol is the transport protocol (TCP or UDP).
-	// +kubebuilder:validation:Enum=TCP;UDP
-	Protocol string `json:"protocol"`
-
-	// port is the destination port number.
-	Port int32 `json:"port"`
-}
-
-type ProposedRule struct {
-	// peers is the list of network peers for this rule.
-	Peers []PolicyPeer `json:"peers"`
-
-	// ports is the list of allowed port/protocol combinations.
-	Ports []PortRule `json:"ports"`
-}
-
-type NetworkPolicyProposalSpec struct {
-	// workloadRef identifies the workload this proposal covers.
-	WorkloadRef WorkloadReference `json:"workloadRef"`
-
-	// ingress is the list of proposed ingress rules.
-	// +optional
-	Ingress []ProposedRule `json:"ingress,omitempty"`
-
-	// egress is the list of proposed egress rules.
-	// +optional
-	Egress []ProposedRule `json:"egress,omitempty"`
-}
 
 type NetworkPolicyProposalStatus struct {
 	// conditions represent the current state of the proposal.
@@ -79,26 +27,11 @@ type NetworkPolicyProposalStatus struct {
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-
-	// generatedPolicyName is the name of the network policy created from this proposal.
-	// +optional
-	GeneratedPolicyName string `json:"generatedPolicyName,omitempty"`
-
-	// firstObserved is when flows for this workload were first seen.
-	// +optional
-	FirstObserved *metav1.Time `json:"firstObserved,omitempty"`
-
-	// lastObserved is when flows for this workload were last seen.
-	// +optional
-	LastObserved *metav1.Time `json:"lastObserved,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=npp
-// +kubebuilder:printcolumn:name="Workload",type=string,JSONPath=`.spec.workloadRef.name`
-// +kubebuilder:printcolumn:name="Kind",type=string,JSONPath=`.spec.workloadRef.kind`
-// +kubebuilder:printcolumn:name="Enforced",type=string,JSONPath=`.metadata.labels.security\.rancher\.io/enforce`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 type NetworkPolicyProposal struct {
@@ -108,7 +41,7 @@ type NetworkPolicyProposal struct {
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 
 	// +required
-	Spec NetworkPolicyProposalSpec `json:"spec"`
+	Spec networkingv1.NetworkPolicySpec `json:"spec"`
 
 	// +optional
 	Status NetworkPolicyProposalStatus `json:"status,omitzero"`
@@ -119,7 +52,8 @@ type NetworkPolicyProposal struct {
 type NetworkPolicyProposalList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitzero"`
-	Items           []NetworkPolicyProposal `json:"items"`
+
+	Items []NetworkPolicyProposal `json:"items"`
 }
 
 func init() {

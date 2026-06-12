@@ -7,24 +7,25 @@ metadata:
   name: deployment-nginx
   namespace: default
 spec:
-  workloadRef:
-    kind: Deployment
-    name: nginx
+  podSelector:
+    matchLabels:
+      app: nginx
+  policyTypes:
+    - Ingress
+    - Egress
   ingress:
-    - peers:
-        - workload:
-            kind: Deployment
-            name: frontend
-          namespace: default
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
       ports:
         - protocol: TCP
           port: 80
   egress:
-    - peers:
-        - workload:
-            kind: Deployment
-            name: postgres
-          namespace: default
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
       ports:
         - protocol: TCP
           port: 5432

@@ -1,6 +1,10 @@
 package topology
 
-import "time"
+import (
+	"k8s.io/apimachinery/pkg/util/sets"
+
+	corev1 "k8s.io/api/core/v1"
+)
 
 // SupportedKinds contains the workload kinds that the operator manages.
 var SupportedWorkloadTypes = map[string]bool{
@@ -16,22 +20,29 @@ type WorkloadKey struct {
 }
 
 type FlowRecord struct {
-	Source   WorkloadKey
-	Dest     WorkloadKey
-	DstPort  int32
-	Protocol string // TCP or UDP
-
+	Source     WorkloadKey
+	Dest       WorkloadKey
+	DstPort    int32
+	Protocol   corev1.Protocol
 	SrcAddress string
 	DstAddress string
-
-	FirstSeen time.Time
-	LastSeen  time.Time
-	ByteCount int64
 }
 
-type flowKey struct {
+type FlowKey struct {
 	Source   WorkloadKey
 	Dest     WorkloadKey
 	DstPort  int32
-	Protocol string
+	Protocol corev1.Protocol
+}
+
+type Peer struct {
+	WorkloadKey
+
+	DstPort  int32
+	Protocol corev1.Protocol
+}
+
+type WorkloadConnections struct {
+	Egress  map[WorkloadKey]sets.Set[Peer]
+	Ingress map[WorkloadKey]sets.Set[Peer]
 }

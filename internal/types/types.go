@@ -1,4 +1,4 @@
-package types //nolint:revive // package name is intentional and widely used
+package types
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -40,8 +40,9 @@ const (
 
 type Policy struct {
 	metav1.TypeMeta `json:",inline"`
-	Name            string `json:"name"`
-	Namespace       string `json:"namespace"`
+
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 func (p Policy) String() string {

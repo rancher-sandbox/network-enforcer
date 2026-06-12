@@ -19,8 +19,10 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"log/slog"
 	"os"
 
+	"github.com/go-logr/logr"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,7 +30,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -80,13 +81,12 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.IntVar(&otlpPort, "otlp-port", 4317, "The port the OTLP gRPC receiver listens on.")
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	slogHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	slogger := slog.New(slogHandler).With("component", "agent")
+	slog.SetDefault(slogger)
+	ctrl.SetLogger(logr.FromSlogHandler(slogger.Handler()))
 
 	// Mitigate HTTP/2 Stream Cancellation / Rapid Reset CVEs.
 	disableHTTP2 := func(c *tls.Config) {
@@ -140,24 +140,15 @@ func main() {
 
 	store := topology.NewStore()
 
-	receiver := flowcollector.NewReceiver(store, otlpPort, ctrl.Log)
+	receiver := flowcollector.NewReceiver(store, otlpPort, slogger)
 	if err := mgr.Add(receiver); err != nil {
 		setupLog.Error(err, "add OTLP receiver")
 		os.Exit(1)
 	}
 
-	scanner := controller.NewTopologyScanner(mgr.GetClient(), store, ctrl.Log)
+	scanner := controller.NewTopologyScanner(mgr.GetClient(), store, slogger)
 	if err := mgr.Add(scanner); err != nil {
 		setupLog.Error(err, "add topology scanner")
-		os.Exit(1)
-	}
-
-	if err := (&controller.NetworkPolicyProposalReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Store:  store,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup controller", "controller", "NetworkPolicyProposal")
 		os.Exit(1)
 	}
 

@@ -2,87 +2,60 @@ package topology
 
 import (
 	"sync"
-	"time"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 type Store struct {
-	mu    sync.RWMutex
-	flows map[flowKey]*FlowRecord
+	mu      sync.RWMutex
+	egress  map[WorkloadKey]sets.Set[Peer]
+	ingress map[WorkloadKey]sets.Set[Peer]
 }
 
 func NewStore() *Store {
 	return &Store{
-		flows: make(map[flowKey]*FlowRecord),
+		egress:  make(map[WorkloadKey]sets.Set[Peer]),
+		ingress: make(map[WorkloadKey]sets.Set[Peer]),
 	}
 }
 
-func (s *Store) Record(f FlowRecord) {
-	key := flowKey{
-		Source:   f.Source,
-		Dest:     f.Dest,
-		DstPort:  f.DstPort,
-		Protocol: f.Protocol,
+func (s *Store) Record(f *FlowRecord) {
+	egressPeer := Peer{
+		WorkloadKey: f.Dest,
+		DstPort:     f.DstPort,
+		Protocol:    f.Protocol,
+	}
+	ingressPeer := Peer{
+		WorkloadKey: f.Source,
+		DstPort:     f.DstPort,
+		Protocol:    f.Protocol,
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if existing, ok := s.flows[key]; ok {
-		existing.LastSeen = f.LastSeen
-		existing.ByteCount += f.ByteCount
-		if f.SrcAddress != "" {
-			existing.SrcAddress = f.SrcAddress
-		}
-		if f.DstAddress != "" {
-			existing.DstAddress = f.DstAddress
-		}
-	} else {
-		stored := f
-		s.flows[key] = &stored
+	if _, ok := s.egress[f.Source]; !ok {
+		s.egress[f.Source] = sets.New[Peer]()
 	}
+	s.egress[f.Source].Insert(egressPeer)
+
+	if _, ok := s.ingress[f.Dest]; !ok {
+		s.ingress[f.Dest] = sets.New[Peer]()
+	}
+	s.ingress[f.Dest].Insert(ingressPeer)
 }
 
-func (s *Store) FlowsForWorkload(wk WorkloadKey) []FlowRecord {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	var result []FlowRecord
-	for _, f := range s.flows {
-		if f.Source == wk || f.Dest == wk {
-			result = append(result, *f)
-		}
-	}
-	return result
-}
-
-func (s *Store) Workloads() []WorkloadKey {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	seen := make(map[WorkloadKey]struct{})
-	for _, f := range s.flows {
-		if f.Source.OwnerName != "" && f.Source.OwnerKind != "" {
-			seen[f.Source] = struct{}{}
-		}
-		if f.Dest.OwnerName != "" && f.Dest.OwnerKind != "" {
-			seen[f.Dest] = struct{}{}
-		}
-	}
-
-	result := make([]WorkloadKey, 0, len(seen))
-	for wk := range seen {
-		result = append(result, wk)
-	}
-	return result
-}
-
-func (s *Store) Prune(cutoff time.Time) {
+func (s *Store) DrainFlows() *WorkloadConnections {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for key, f := range s.flows {
-		if f.LastSeen.Before(cutoff) {
-			delete(s.flows, key)
-		}
+	connections := &WorkloadConnections{
+		Egress:  s.egress,
+		Ingress: s.ingress,
 	}
+
+	s.egress = make(map[WorkloadKey]sets.Set[Peer])
+	s.ingress = make(map[WorkloadKey]sets.Set[Peer])
+
+	return connections
 }

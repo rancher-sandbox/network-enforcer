@@ -45,6 +45,7 @@ obi:
     name: network-enforcer-obi-config
 
 cniwatcher:
+  enabled: true
   # Valid values: aws-vpc, calico, cilium, flannel
   cniType: calico
   image:
