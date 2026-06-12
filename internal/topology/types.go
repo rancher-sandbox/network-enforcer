@@ -6,13 +6,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// SupportedKinds contains the workload kinds that the operator manages.
-var SupportedWorkloadTypes = map[string]bool{
-	"Deployment":  true,
-	"StatefulSet": true,
-	"DaemonSet":   true,
-}
-
 type WorkloadKey struct {
 	Namespace string
 	OwnerKind string

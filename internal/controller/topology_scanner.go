@@ -20,6 +20,8 @@ import (
 	"secuity.rancher.io/network-enforcer/internal/topology"
 )
 
+const defaultScanInterval = 30 * time.Second
+
 type TopologyScanner struct {
 	client   client.Client
 	store    *topology.Store
@@ -32,7 +34,7 @@ func NewTopologyScanner(c client.Client, store *topology.Store, logger *slog.Log
 		client:   c,
 		store:    store,
 		log:      logger.With("component", "topology-scanner"),
-		interval: 30 * time.Second,
+		interval: defaultScanInterval,
 	}
 }
 

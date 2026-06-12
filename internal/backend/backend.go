@@ -17,5 +17,4 @@ type PolicyBackend interface {
 	) client.Object
 	// Empty returns a zero-value instance for client.Get.
 	Empty() client.Object
-	UpdateSpec(existing, desired client.Object)
 }

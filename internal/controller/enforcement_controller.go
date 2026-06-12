@@ -71,9 +71,9 @@ func (r *EnforcementReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				newLabels := e.ObjectNew.GetLabels()
 				return oldLabels[enforceLabelKey] != newLabels[enforceLabelKey]
 			},
-			CreateFunc:  func(e event.CreateEvent) bool { return true },
-			DeleteFunc:  func(e event.DeleteEvent) bool { return false },
-			GenericFunc: func(e event.GenericEvent) bool { return false },
+			CreateFunc:  func(_ event.CreateEvent) bool { return true },
+			DeleteFunc:  func(_ event.DeleteEvent) bool { return false },
+			GenericFunc: func(_ event.GenericEvent) bool { return false },
 		}).
 		Named("enforcement").
 		Complete(r)

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
-	"time"
+	"strings"
 
 	colmetricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -43,7 +43,8 @@ func NewReceiver(store *topology.Store, port int, logger *slog.Logger) *Receiver
 }
 
 func (r *Receiver) Start(ctx context.Context) error {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", r.port))
+	listenerConfig := net.ListenConfig{}
+	lis, err := listenerConfig.Listen(ctx, "tcp", fmt.Sprintf(":%d", r.port))
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %d: %w", r.port, err)
 	}
@@ -58,26 +59,24 @@ func (r *Receiver) Start(ctx context.Context) error {
 		r.server.GracefulStop()
 	}()
 
-	if err := r.server.Serve(lis); err != nil {
+	if err = r.server.Serve(lis); err != nil {
 		return fmt.Errorf("gRPC server error: %w", err)
 	}
 	return nil
 }
 
 func (r *Receiver) Export(
-	_ context.Context,
+	ctx context.Context,
 	req *colmetricspb.ExportMetricsServiceRequest,
 ) (*colmetricspb.ExportMetricsServiceResponse, error) {
-	now := time.Now()
-
 	for _, rm := range req.GetResourceMetrics() {
 		for _, sm := range rm.GetScopeMetrics() {
 			for _, m := range sm.GetMetrics() {
-				r.log.InfoContext(_, "received metric", "name", m.GetName())
+				r.log.InfoContext(ctx, "received metric", "name", m.GetName())
 				if m.GetName() != targetMetricName {
 					continue
 				}
-				r.processMetric(m, now)
+				r.processMetric(m)
 			}
 		}
 	}
@@ -85,7 +84,7 @@ func (r *Receiver) Export(
 	return &colmetricspb.ExportMetricsServiceResponse{}, nil
 }
 
-func (r *Receiver) processMetric(m *metricspb.Metric, now time.Time) {
+func (r *Receiver) processMetric(m *metricspb.Metric) {
 	var dataPoints []*metricspb.NumberDataPoint
 
 	switch d := m.GetData().(type) {
@@ -107,12 +106,11 @@ func (r *Receiver) processMetric(m *metricspb.Metric, now time.Time) {
 }
 
 func normalizeProtocol(protocol string) (corev1.Protocol, error) {
-	normalized := corev1.Protocol(protocol)
-	switch normalized {
-	case corev1.ProtocolTCP:
-		return corev1.ProtocolTCP, nil
-	case corev1.ProtocolUDP:
-		return corev1.ProtocolUDP, nil
+	p := corev1.Protocol(strings.ToUpper(protocol))
+	//nolint:exhaustive // we don't want to manage SCTP
+	switch p {
+	case corev1.ProtocolTCP, corev1.ProtocolUDP:
+		return p, nil
 	default:
 		return corev1.Protocol(""), fmt.Errorf("unknown protocol: %s", protocol)
 	}

@@ -19,10 +19,6 @@ func (b *Backend) Empty() client.Object {
 	return &networkingv1.NetworkPolicy{}
 }
 
-func (b *Backend) UpdateSpec(existing, desired client.Object) {
-	existing.(*networkingv1.NetworkPolicy).Spec = desired.(*networkingv1.NetworkPolicy).Spec
-}
-
 func (b *Backend) Build(
 	name, namespace string,
 	podSelector map[string]string,
