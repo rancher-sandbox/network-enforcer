@@ -6,7 +6,7 @@ require (
 	github.com/cilium/cilium v1.19.5
 	github.com/go-logr/logr v1.4.3
 	github.com/jdrews/go-tailer v1.2.1
-	github.com/onsi/ginkgo/v2 v2.31.0
+	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/sirupsen/logrus v1.9.4
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.44.0
