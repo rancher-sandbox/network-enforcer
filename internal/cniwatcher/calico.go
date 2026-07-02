@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -102,13 +103,9 @@ func (w *CalicoWatcher) ConnectToGoldmane() error {
 }
 
 func (w *CalicoWatcher) WatchFlows() error {
-	filter := &pb.Filter{
-		Actions: []pb.Action{pb.Action_Deny},
-	}
-
+	// todo!: for now we want to log both allow events for staged policies and deny events for enforced policies. So we cannot apply a filter here. The best thing to do would be to have 2 different streams and each filter on its respective event type.
 	req := &pb.FlowStreamRequest{
 		StartTimeGte:        0,
-		Filter:              filter,
 		AggregationInterval: calicoAggregationInterval, // 15 seconds is the required value
 	}
 
@@ -134,11 +131,131 @@ func (w *CalicoWatcher) WatchFlows() error {
 				w.Log.Error("failed to parse policy deny event", "flowResult", flowResult, "err", parseErr)
 				continue
 			}
+
+			// todo!: for now we just log but we don't send an otel event.
+			w.logStagedPolicyDenies(flowResult)
+
 			if processErr := w.ProcessPolicyDenyEvent(event); processErr != nil {
 				w.Log.Error("failed to process policy deny event", "event", event, "err", processErr)
 			}
 		}
 	}
+}
+
+// logStagedPolicyDenies logs all staged policy deny events from the flow result.
+func (w *CalicoWatcher) logStagedPolicyDenies(flowResult *pb.FlowResult) {
+	flow := flowResult.GetFlow()
+	if flow == nil {
+		return
+	}
+
+	key := flow.GetKey()
+	if key == nil {
+		return
+	}
+
+	policies := key.GetPolicies()
+	if policies == nil {
+		return
+	}
+
+	// The action here will always be `Allow` for Staged policies because
+	// they are not blocking the traffic. On the other side the internal action
+	// of the policy should be deny, because we want to know which traffic will be blocked
+	// if the policy is enforced.
+	pendingPolicies := policies.GetPendingPolicies()
+	if len(pendingPolicies) == 0 {
+		return
+	}
+
+	stagedKubernetesPendingDenyPolicies := stagedKubernetesPendingDenyPolicies(pendingPolicies)
+	if len(stagedKubernetesPendingDenyPolicies) == 0 {
+		return
+	}
+
+	w.Log.Info("Observed staged policy impact",
+		"action", key.GetAction().String(),
+		"protocol", key.GetProto(),
+		"destPort", key.GetDestPort(),
+		"reporter", key.GetReporter().String(),
+		"srcNamespace", key.GetSourceNamespace(),
+		"srcName", key.GetSourceName(),
+		"dstNamespace", key.GetDestNamespace(),
+		"dstName", key.GetDestName(),
+		"pendingPolicies", pendingPoliciesToStrings(stagedKubernetesPendingDenyPolicies),
+	)
+}
+
+func stagedKubernetesPendingDenyPolicies(policies []*pb.PolicyHit) []*pb.PolicyHit {
+	result := make([]*pb.PolicyHit, 0, len(policies))
+
+	for _, policy := range policies {
+		if policy == nil {
+			continue
+		}
+
+		// The resulting action of the staged policy should be deny.
+		if policy.GetAction() != pb.Action_Deny {
+			continue
+		}
+
+		// if the policy is a staged Kubernetes network policy we store it.
+		if policy.GetKind() == pb.PolicyKind_StagedKubernetesNetworkPolicy {
+			result = append(result, policy)
+			continue
+		}
+
+		// if we didn't reach the end of the tier there is nothing else to do
+		if policy.GetKind() != pb.PolicyKind_EndOfTier {
+			continue
+		}
+
+		// Otherwise we get the trigger
+		trigger := policy.GetTrigger()
+		if trigger != nil &&
+			trigger.GetKind() == pb.PolicyKind_StagedKubernetesNetworkPolicy {
+			result = append(result, policy)
+		}
+	}
+
+	return result
+}
+
+func pendingPoliciesToStrings(policies []*pb.PolicyHit) []string {
+	if len(policies) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(policies))
+	for _, policy := range policies {
+		if policy == nil {
+			continue
+		}
+
+		parts := []string{
+			fmt.Sprintf("kind=%s", policy.GetKind().String()),
+			fmt.Sprintf("namespace=%s", policy.GetNamespace()),
+			fmt.Sprintf("name=%s", policy.GetName()),
+			fmt.Sprintf("tier=%s", policy.GetTier()),
+			fmt.Sprintf("action=%s", policy.GetAction().String()),
+		}
+
+		if trigger := policy.GetTrigger(); trigger != nil {
+			parts = append(parts,
+				fmt.Sprintf("triggerKind=%s", trigger.GetKind().String()),
+				fmt.Sprintf("triggerNamespace=%s", trigger.GetNamespace()),
+				fmt.Sprintf("triggerName=%s", trigger.GetName()),
+			)
+		}
+
+		result = append(result, strings.Join(parts, " "))
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
 }
 
 // parsePolicyDenyEvent parses Calico Goldmane flow results and extracts policy deny events.
