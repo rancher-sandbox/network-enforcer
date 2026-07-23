@@ -42,14 +42,18 @@ func installCertManager() env.Func {
 			return ctx, fmt.Errorf("install cert-manager: %w", err)
 		}
 
-		if err := manager.RunInstall(
+		csiOpts := []helm.Option{
 			helm.WithName("cert-manager-csi-driver"),
 			helm.WithNamespace(certManagerNamespace),
-			helm.WithChart(jetstackRepoName+"/cert-manager-csi-driver"),
+			helm.WithChart(jetstackRepoName + "/cert-manager-csi-driver"),
 			helm.WithArgs("--version", certManagerCSIVersion),
 			helm.WithWait(),
 			helm.WithTimeout(defaultHelmTimeout.String()),
-		); err != nil {
+		}
+		// we need the CSI driver on each node so that also pods on the control-plane can mount CSI volumes
+		csiOpts = append(csiOpts, generateKindControlPlaneTolerations("")...)
+
+		if err := manager.RunInstall(csiOpts...); err != nil {
 			return ctx, fmt.Errorf("install cert-manager-csi-driver: %w", err)
 		}
 

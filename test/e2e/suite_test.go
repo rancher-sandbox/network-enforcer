@@ -83,6 +83,10 @@ func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
 			helm.WithTimeout(defaultHelmTimeout.String()),
 		}
 
+		// we want to install these agents on all the nodes (control-plane included)
+		helmOpts = append(helmOpts, generateKindControlPlaneTolerations("cniwatcher.")...)
+		helmOpts = append(helmOpts, generateKindControlPlaneTolerations("obi.")...)
+
 		logger.InfoContext(ctx, "installing network enforcer chart", "releaseName", testCfg.releaseName)
 		if err := manager.RunInstall(helmOpts...); err != nil {
 			return ctx, fmt.Errorf("install network enforcer chart: %w", err)

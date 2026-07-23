@@ -145,3 +145,11 @@ func addLocalChartRepo(ctx context.Context, manager *helm.Manager, localRepoName
 	}
 	return nil
 }
+
+func generateKindControlPlaneTolerations(prefix string) []helm.Option {
+	return []helm.Option{
+		helm.WithArgs("--set", fmt.Sprintf("%stolerations[0].key=node-role.kubernetes.io/control-plane", prefix)),
+		helm.WithArgs("--set", fmt.Sprintf("%stolerations[0].operator=Exists", prefix)),
+		helm.WithArgs("--set", fmt.Sprintf("%stolerations[0].effect=NoSchedule", prefix)),
+	}
+}
