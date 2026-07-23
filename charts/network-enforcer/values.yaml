@@ -98,6 +98,20 @@ obi:
           csi.cert-manager.io/issuer-kind: Issuer
           csi.cert-manager.io/dns-names: ${POD_NAME}.${POD_NAMESPACE}
 
+# Shared OTLP configuration used by all components.
+otel:
+  # OTLP endpoint (host:port). Empty disables OTLP.
+  endpoint: ""
+  # Protocol: "grpc" or "http/protobuf".
+  protocol: grpc
+  # Path to the CA certificate for verifying the collector's TLS cert.
+  # Empty means insecure.
+  caCert: ""
+  # Path to the client TLS certificate and key for mTLS with the collector.
+  # Both must be set to enable client cert auth.
+  clientCert: ""
+  clientKey: ""
+
 cniwatcher:
   enabled: true
   # Valid values: aws-vpc, calico, cilium, flannel
@@ -131,8 +145,6 @@ cniwatcher:
     capabilities:
       drop:
       - ALL
-  # Empty string uses {{ release-name }}-otlp.{{ namespace }}.svc.cluster.local:4317
-  otelEndpoint: ""
   calico:
     goldmaneEndpoint: goldmane.calico-system.svc:7443
   cilium:

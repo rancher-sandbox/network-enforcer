@@ -54,7 +54,7 @@ helm_set_values = [
     "cniwatcher.cniType=" + cni_type,
 	"cniwatcher.containerSecurityContext.runAsUser=null",
     "cniwatcher.podSecurityContext.runAsNonRoot=false",
-    "cniwatcher.otelEndpoint=opentelemetry-collector." + release_namespace + ".svc.cluster.local:4317",
+    "otel.endpoint=opentelemetry-collector." + release_namespace + ".svc.cluster.local:4317",
 ]
 
 # For development, handle CNI setup in Kind cluster

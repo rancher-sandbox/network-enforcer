@@ -20,7 +20,7 @@ helm upgrade --install network-enforcer ./charts/network-enforcer \
   --set cniwatcher.image.tag=<tag>
 ```
 
-Set `cniwatcher.otelEndpoint` to your OTLP trace collector. If empty, the chart defaults to `<release>-otlp.<namespace>.svc.cluster.local:4317`.
+Set `otel.endpoint` to your OTLP trace collector endpoint. When empty, OTLP is disabled for the component.
 
 ## Local development (Tilt)
 

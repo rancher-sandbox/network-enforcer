@@ -57,16 +57,7 @@ DNS name of the controller OTLP service; also a SAN on the controller cert.
 {{ include "network-enforcer.fullname" . }}-otlp.{{ .Release.Namespace }}.svc.cluster.local
 {{- end -}}
 
-{{/*
-Set OTEL endpoint (defaults to controller OTLP service in release namespace)
-*/}}
-{{- define "network-enforcer.cniwatcher.otelEndpoint" -}}
-{{- if .Values.cniwatcher.otelEndpoint -}}
-{{- .Values.cniwatcher.otelEndpoint -}}
-{{- else -}}
-{{- printf "%s:4317" (include "network-enforcer.controller.otlpServiceDNS" .) -}}
-{{- end -}}
-{{- end -}}
+
 
 {{/*
 Certificate helpers for cniwatcher mTLS (CA issuer and secret share a name).

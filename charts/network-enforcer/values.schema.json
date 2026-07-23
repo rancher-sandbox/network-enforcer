@@ -71,9 +71,6 @@
                     },
                     "additionalProperties": false
                 },
-                "otelEndpoint": {
-                    "type": "string"
-                },
                 "podSecurityContext": {
                     "type": "object",
                     "properties": {
@@ -285,6 +282,27 @@
         },
         "kubernetesClusterDomain": {
             "type": "string"
+        },
+        "otel": {
+            "type": "object",
+            "properties": {
+                "endpoint": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "caCert": {
+                    "type": "string"
+                },
+                "clientCert": {
+                    "type": "string"
+                },
+                "clientKey": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
         },
         "obi": {
             "type": "object",
