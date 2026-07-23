@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,8 +30,22 @@ func TestMain(m *testing.M) {
 	testSuiteConf := loadSuiteConfig()
 
 	path := conf.ResolveKubeConfigFile()
-	cfg := envconf.NewWithKubeConfig(path)
+	// WithFailFast allows us to skip the teardown phase in case of test failures
+	// https://github.com/kubernetes-sigs/e2e-framework/blob/1cdb40b1d89482bc7ce0e7ab2e530d2426a7ea91/pkg/env/env.go#L538
+	cfg := envconf.NewWithKubeConfig(path).WithFailFast()
 	testEnv = env.NewWithConfig(cfg)
+
+	var suiteFailed atomic.Bool
+	// we initially set it to true so that if we fail during setup, we can skip teardown
+	suiteFailed.Store(true)
+	testEnv.AfterEachTest(func(ctx context.Context, _ *envconf.Config, t *testing.T) (context.Context, error) {
+		if t.Failed() {
+			suiteFailed.Store(true)
+		} else {
+			suiteFailed.Store(false)
+		}
+		return ctx, nil
+	})
 
 	clusterName := envconf.RandomName(testSuiteConf.namespacePrefix, 20)
 
@@ -49,7 +64,17 @@ func TestMain(m *testing.M) {
 
 	finishFuncs := []env.Func{
 		envfuncs.ExportClusterLogs(clusterName, testSuiteConf.logsDir),
-		envfuncs.DestroyCluster(clusterName),
+		func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
+			if suiteFailed.Load() {
+				getSetupLogger(ctx).InfoContext(
+					ctx,
+					"⏩ Skipping cluster destroy to debug",
+					"clusterName", clusterName,
+				)
+				return ctx, nil
+			}
+			return envfuncs.DestroyCluster(clusterName)(ctx, cfg)
+		},
 	}
 
 	testEnv.Setup(setupFuncs...)
