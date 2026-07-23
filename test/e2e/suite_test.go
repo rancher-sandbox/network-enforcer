@@ -38,12 +38,12 @@ func TestMain(m *testing.M) {
 		envfuncs.CreateClusterWithConfig(kind.NewProvider(), clusterName, testSuiteConf.kindConfigPath),
 		envfuncs.LoadImageToCluster(clusterName, testSuiteConf.controllerImage),
 		envfuncs.LoadImageToCluster(clusterName, testSuiteConf.cniWatcherImage),
+		// we inject the suite config in the context so that each test can access parameters like the release name, namespace, image, etc.
+		injectSuiteConfig(testSuiteConf),
 		injectSetupLogger(),
 		installCNI(testSuiteConf.cni),
 		installCertManager(),
 		installNetEnforcerChart(&testSuiteConf),
-		// we inject the suite config in the context so that each test can access parameters like the release name, namespace, image, etc.
-		injectSuiteConfig(testSuiteConf),
 	}
 
 	finishFuncs := []env.Func{
