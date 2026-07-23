@@ -3,7 +3,7 @@ package grpcexporter
 const (
 	// DefaultCniwatcherLabelSelectorString is the default label selector used to
 	// discover cniwatcher pods across the cluster.
-	DefaultCniwatcherLabelSelectorString = "app.kubernetes.io/component=cniwatcher"
+	DefaultCniwatcherLabelSelectorString = "app.kubernetes.io/name=network-enforcer-cniwatcher"
 
 	// DefaultAgentPort is the gRPC port that cniwatcher serves ScrapeViolations on.
 	DefaultAgentPort = 50051
