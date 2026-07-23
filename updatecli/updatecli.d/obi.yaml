@@ -13,6 +13,21 @@ sources:
         kind: semver
         pattern: "*"
 
+conditions:
+  obi-changed:
+    name: Skip when opentelemetry-ebpf-instrumentation is already up to date
+    kind: shell
+    scmid: default
+    disablesourceinput: true
+    spec:
+      command: |
+        # Extract the dependency version currently pinned in Chart.yaml
+        # (4-space indented "version:" line belongs to the dependency, quotes stripped).
+        current=$(sed -n 's/^    version: *"\?\([0-9][^"]*\)"\?$/\1/p' charts/network-enforcer/Chart.yaml | head -n1)
+        # Exit 0 (proceed with the update) only when the chart is NOT yet at the source version;
+        # exit 1 (skip the pipeline gracefully) when already up to date or the value could not be read.
+        [ -n "$current" ] && [ "$current" != "{{ source "obi" }}" ]
+
 targets:
   obi-dependency-update:
     name: 'deps(obi): update opentelemetry-ebpf-instrumentation to {{ source "obi" }}'
@@ -36,7 +51,6 @@ actions:
     kind: github/pullrequest
     scmid: default
     spec:
-      automerge: false
       mergemethod: squash
       description: |
         Automatic opentelemetry-ebpf-instrumentation Helm chart {{ source "obi" }} update.
