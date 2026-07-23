@@ -74,6 +74,7 @@ func assessPolicyProposalsGenerated(ctx context.Context, t *testing.T, _ *envcon
 	t.Helper()
 	namespace := getNamespace(ctx)
 
+	const namespaceLabelKey = "kubernetes.io/metadata.name"
 	tcpProtocol := corev1.ProtocolTCP
 	udpProtocol := corev1.ProtocolUDP
 	dstPort := intstr.FromInt(simpleAppTCPServicePort)
@@ -100,7 +101,7 @@ func assessPolicyProposalsGenerated(ctx context.Context, t *testing.T, _ *envcon
 					To: []networkingv1.NetworkPolicyPeer{
 						{
 							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{"kubernetes.io/metadata.name": namespace},
+								MatchLabels: map[string]string{namespaceLabelKey: namespace},
 							},
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{"app": simpleAppServerDeploymentName},
@@ -118,7 +119,7 @@ func assessPolicyProposalsGenerated(ctx context.Context, t *testing.T, _ *envcon
 					To: []networkingv1.NetworkPolicyPeer{
 						{
 							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{"kubernetes.io/metadata.name": "kube-system"},
+								MatchLabels: map[string]string{namespaceLabelKey: "kube-system"},
 							},
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{"k8s-app": "kube-dns"},
@@ -144,7 +145,7 @@ func assessPolicyProposalsGenerated(ctx context.Context, t *testing.T, _ *envcon
 					From: []networkingv1.NetworkPolicyPeer{
 						{
 							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{"kubernetes.io/metadata.name": namespace},
+								MatchLabels: map[string]string{namespaceLabelKey: namespace},
 							},
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{"app": simpleAppClientDeploymentName},
