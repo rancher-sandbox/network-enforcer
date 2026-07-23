@@ -60,6 +60,7 @@ func TestCompleteFlow(t *testing.T) {
 				return ctx
 			}).
 		Assess("Check violations are reported", checkViolations).
+		Assess("Check cniwatcher deny event is emitted", checkCNIWatcherDenyEvent).
 		Assess("Check TCP traffic is still allowed",
 			func(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
 				return assertPacketSentFromClient(ctx, t, corev1.ProtocolTCP)
@@ -356,5 +357,37 @@ func checkViolations(ctx context.Context, t *testing.T, _ *envconf.Config) conte
 			return len(updatedPolicy.Status.Violations) > 0
 		}, defaultOperationTimeout, 1*time.Second)
 	}
+	return ctx
+}
+
+func checkCNIWatcherDenyEvent(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
+	t.Helper()
+	namespace := getNamespace(ctx)
+	cni := getSuiteConfig(ctx).cni
+
+	// Calico includes the denying NetworkPolicy name in deny events.
+	// Cilium does not for K8s NetworkPolicy denies.
+	var policyNames []string
+	if cni == calico {
+		if policies, ok := ctx.Value(key("policies")).([]securityv1alpha1.WorkloadNetworkPolicy); ok {
+			for _, p := range policies {
+				policyNames = append(policyNames, p.Name)
+			}
+		}
+	}
+
+	require.Eventually(t, func() bool {
+		_, cmd := getProtoCmd(corev1.ProtocolUDP)
+		_, _ = execInSimpleClientDeployment(ctx, t, cmd)
+
+		logs, err := fetchCNIWatcherLogs(ctx)
+		if err != nil {
+			t.Logf("failed to fetch cniwatcher logs: %v", err)
+			return false
+		}
+		return cniwatcherLogsContainDenyEvent(logs, namespace, cni, policyNames)
+	}, defaultOperationTimeout, 3*time.Second,
+		"expected cniwatcher to emit a policy deny event for namespace %q (cni=%s)",
+		namespace, cni)
 	return ctx
 }

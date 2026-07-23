@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
 	"sigs.k8s.io/e2e-framework/klient/wait"
 	"sigs.k8s.io/e2e-framework/klient/wait/conditions"
@@ -23,8 +24,10 @@ import (
 type key string
 
 const (
-	suiteCfgKey = key("suiteConfig")
-	loggerKey   = key("logger")
+	suiteCfgKey  = key("suiteConfig")
+	loggerKey    = key("logger")
+	clientKey    = key("client")
+	clientsetKey = key("clientset")
 )
 
 func injectSetupLogger() env.Func {
@@ -50,17 +53,27 @@ func getSuiteConfig(ctx context.Context) suiteConfig {
 func setupSharedK8sClient(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
 	t.Log("setup shared k8s client")
 
-	r, err := resources.New(config.Client().RESTConfig())
+	restConfig := config.Client().RESTConfig()
+
+	r, err := resources.New(restConfig)
 	require.NoError(t, err, "failed to create controller runtime client")
 
 	err = securityv1alpha1.AddToScheme(r.GetScheme())
 	require.NoError(t, err)
 
-	return context.WithValue(ctx, key("client"), r)
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	require.NoError(t, err, "failed to create kubernetes clientset")
+
+	ctx = context.WithValue(ctx, clientKey, r)
+	return context.WithValue(ctx, clientsetKey, clientset)
 }
 
 func getClient(ctx context.Context) *resources.Resources {
-	return ctx.Value(key("client")).(*resources.Resources)
+	return ctx.Value(clientKey).(*resources.Resources)
+}
+
+func getClientset(ctx context.Context) *kubernetes.Clientset {
+	return ctx.Value(clientsetKey).(*kubernetes.Clientset)
 }
 
 func getNamespace(ctx context.Context) string {
