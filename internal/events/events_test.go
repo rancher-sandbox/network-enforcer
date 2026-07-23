@@ -140,6 +140,28 @@ func TestInit_GRPCmTLSMissingCA(t *testing.T) {
 	require.Error(t, err, "expected error for missing CA cert")
 }
 
+func TestInit_RejectsClientCertWithoutCA(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := events.Init(
+		context.Background(), "localhost:4317",
+		"", "/some/cert.pem", "/some/key.pem", "grpc",
+	)
+	require.Error(t, err, "expected error when client cert is set but CA is empty")
+	require.Contains(t, err.Error(), "client certificate requires a CA certificate")
+}
+
+func TestInit_RejectsClientKeyWithoutCA(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := events.Init(
+		context.Background(), "localhost:4317",
+		"", "", "/some/key.pem", "grpc",
+	)
+	require.Error(t, err, "expected error when client key is set but CA is empty")
+	require.Contains(t, err.Error(), "client certificate requires a CA certificate")
+}
+
 func TestInit_HTTPProtobufInsecure(t *testing.T) {
 	t.Parallel()
 
@@ -147,6 +169,20 @@ func TestInit_HTTPProtobufInsecure(t *testing.T) {
 		context.Background(), "http://localhost:4318", "", "", "", "http/protobuf",
 	)
 	require.NoError(t, err, "unexpected error")
+	require.NotNil(t, logger, "expected non-nil logger")
+	require.NotNil(t, shutdown, "expected non-nil shutdown func")
+	require.NoError(t, shutdown(context.Background()), "shutdown returned error")
+}
+
+func TestInit_HTTPProtobufInsecureHostPort(t *testing.T) {
+	t.Parallel()
+
+	// host:port without scheme + empty CA should also be insecure
+	// (not silently switch to HTTPS).
+	logger, shutdown, err := events.Init(
+		context.Background(), "localhost:4318", "", "", "", "http/protobuf",
+	)
+	require.NoError(t, err, "unexpected error for host:port endpoint without CA")
 	require.NotNil(t, logger, "expected non-nil logger")
 	require.NotNil(t, shutdown, "expected non-nil shutdown func")
 	require.NoError(t, shutdown(context.Background()), "shutdown returned error")

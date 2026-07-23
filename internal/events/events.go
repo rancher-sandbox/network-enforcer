@@ -42,6 +42,11 @@ func buildTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Conf
 	if _, err := tlsutil.LoadCACertPool(caCertPath); err != nil {
 		return nil, err
 	}
+	// Fail fast on partial client cert configuration.
+	if (clientCertPath != "") != (clientKeyPath != "") {
+		return nil, fmt.Errorf("both or neither of client cert and key must be set (cert=%q, key=%q)",
+			clientCertPath, clientKeyPath)
+	}
 	cfg := &tls.Config{
 		MinVersion: tls.VersionTLS13,
 		// Re-read CA on every handshake to handle rotation.
@@ -97,16 +102,18 @@ func createGRPCExporter(ctx context.Context,
 func createHTTPExporter(ctx context.Context,
 	endpoint, caCertPath, clientCertPath, clientKeyPath string,
 ) (sdklog.Exporter, error) {
-	insecure := strings.HasPrefix(endpoint, "http://")
+	// Strip any scheme prefix; WithEndpoint expects host:port.
 	httpEndpoint := strings.TrimPrefix(strings.TrimPrefix(endpoint, "https://"), "http://")
 
 	opts := []otlploghttp.Option{
 		otlploghttp.WithEndpoint(httpEndpoint),
 	}
 
-	if insecure {
+	// Empty CA means insecure (matches gRPC behaviour and Init doc comment).
+	// An explicit http:// scheme also opts into insecure.
+	if caCertPath == "" || strings.HasPrefix(endpoint, "http://") {
 		opts = append(opts, otlploghttp.WithInsecure())
-	} else if caCertPath != "" {
+	} else {
 		tlsConfig, err := buildTLSConfig(caCertPath, clientCertPath, clientKeyPath)
 		if err != nil {
 			return nil, err
@@ -124,6 +131,12 @@ func Init(
 	ctx context.Context,
 	endpoint, caCertPath, clientCertPath, clientKeyPath, protocol string,
 ) (otellog.Logger, func(context.Context) error, error) {
+	// Client certs without a CA are silently ignored by the exporters.
+	// Reject the combination up front so users don't think mTLS is active.
+	if caCertPath == "" && (clientCertPath != "" || clientKeyPath != "") {
+		return nil, nil, fmt.Errorf("client certificate requires a CA certificate (caCertPath is empty)")
+	}
+
 	var exporter sdklog.Exporter
 	proto, err := stringToProtocol(protocol)
 	if err != nil {

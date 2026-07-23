@@ -153,7 +153,7 @@ func setupOtelLogExporter(
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), otlpLogShutdownTimeout)
 			defer cancel()
 			if sErr := eventShutdown(shutdownCtx); sErr != nil {
-				logger.Error("failed to shutdown OTLP log provider", "error", sErr)
+				logger.ErrorContext(ctx, "failed to shutdown OTLP log provider", "error", sErr)
 			}
 		}
 		return nil
@@ -270,10 +270,14 @@ func main() {
 		"OTLP endpoint for the violation-lifecycle log exporter "+
 			"(policy_violation_acknowledged records). Defaults to the "+
 			"OTEL_EXPORTER_OTLP_ENDPOINT env var; empty disables OTLP logs.")
+	otlpLogProtocolDefault := os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
+	if otlpLogProtocolDefault == "" {
+		otlpLogProtocolDefault = "grpc"
+	}
 	flag.StringVar(&conf.otlpLogProtocol, "otlp-log-protocol",
-		os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL"),
+		otlpLogProtocolDefault,
 		"OTLP protocol for the violation-lifecycle log exporter: grpc or "+
-			"http/protobuf. Defaults to the OTEL_EXPORTER_OTLP_PROTOCOL env var.")
+			"http/protobuf. Defaults to OTEL_EXPORTER_OTLP_PROTOCOL env var or grpc.")
 	flag.StringVar(&conf.otlpLogCACert, "otlp-log-ca-cert",
 		os.Getenv("OTEL_EXPORTER_OTLP_CERTIFICATE"),
 		"Path to the CA certificate for verifying the OTLP log collector's "+
