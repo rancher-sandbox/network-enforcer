@@ -22,6 +22,10 @@ spec:
     spec:
       serviceAccountName: {{ include "network-enforcer.fullname" . }}-cniwatcher
       securityContext: {{- toYaml .Values.cniwatcher.podSecurityContext | nindent 8 }}
+      {{- with .Values.cniwatcher.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: cniwatcher
           image: "{{ .Values.cniwatcher.image.repository }}:{{ .Values.cniwatcher.image.tag }}"

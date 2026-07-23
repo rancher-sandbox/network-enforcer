@@ -131,6 +131,9 @@
                         }
                     },
                     "additionalProperties": false
+                },
+                "tolerations": {
+                    "type": "array"
                 }
             },
             "additionalProperties": false

@@ -139,3 +139,4 @@ cniwatcher:
     hubbleEndpoint: unix:///var/run/cilium/hubble.sock
   serviceAccount:
     annotations: {}
+  tolerations: []
