@@ -10,13 +10,11 @@ import (
 
 	"github.com/rancher-sandbox/network-enforcer/internal/tlsutil"
 	"github.com/rancher-sandbox/network-enforcer/internal/types"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	otellog "go.opentelemetry.io/otel/log"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.30.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const DefaultOtelCollectorEndpoint = "localhost:4317"
@@ -30,8 +28,8 @@ type OpenTelemetryConfig struct {
 }
 
 type OpenTelemetryService struct {
-	TracerProvider *sdktrace.TracerProvider
-	Tracer         trace.Tracer
+	LoggerProvider *sdklog.LoggerProvider
+	Logger         otellog.Logger
 }
 
 type Service struct {
@@ -56,12 +54,12 @@ func (s *Service) Start() error {
 		return err
 	}
 
-	exporter, err := otlptracegrpc.New(s.Config.Ctx,
-		otlptracegrpc.WithEndpoint(s.Config.CollectorEndpoint),
+	exporter, err := otlploggrpc.New(s.Config.Ctx,
+		otlploggrpc.WithEndpoint(s.Config.CollectorEndpoint),
 		transportOpt,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create OTLP exporter: %w", err)
+		return fmt.Errorf("failed to create OTLP log exporter: %w", err)
 	}
 
 	res, err := resource.New(s.Config.Ctx,
@@ -73,20 +71,19 @@ func (s *Service) Start() error {
 		return fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	s.Service.TracerProvider = sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(res),
+	s.Service.LoggerProvider = sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)),
+		sdklog.WithResource(res),
 	)
 
-	otel.SetTracerProvider(s.Service.TracerProvider)
-	s.Service.Tracer = s.Service.TracerProvider.Tracer("cniwatcher")
+	s.Service.Logger = s.Service.LoggerProvider.Logger("cniwatcher")
 	s.Config.Log.Info("OpenTelemetry initialized", "collector", s.Config.CollectorEndpoint)
 	return nil
 }
 
-func (s *Service) exporterTransportOption() (otlptracegrpc.Option, error) {
+func (s *Service) exporterTransportOption() (otlploggrpc.Option, error) {
 	if s.Config.CertDir == "" {
-		return otlptracegrpc.WithInsecure(), nil
+		return otlploggrpc.WithInsecure(), nil
 	}
 
 	// The receiver cert is verified against its DNS name, so drop the port.
@@ -101,7 +98,7 @@ func (s *Service) exporterTransportOption() (otlptracegrpc.Option, error) {
 	}
 
 	s.Config.Log.Info("OTLP exporter using mTLS", "cert_dir", s.Config.CertDir, "server_name", serverName)
-	return otlptracegrpc.WithTLSCredentials(creds), nil
+	return otlploggrpc.WithTLSCredentials(creds), nil
 }
 
 func policiesToStrings(policies []types.Policy) []string {
@@ -115,65 +112,63 @@ func policiesToStrings(policies []types.Policy) []string {
 	return result
 }
 
-func addStringAttr(attrs []attribute.KeyValue, key, value string) []attribute.KeyValue {
-	if value != "" {
-		return append(attrs, attribute.String(key, value))
+func stringSlice(key string, values []string) otellog.KeyValue {
+	vals := make([]otellog.Value, len(values))
+	for i, v := range values {
+		vals[i] = otellog.StringValue(v)
 	}
-	return attrs
+	return otellog.Slice(key, vals...)
 }
 
-func addStringSliceAttr(attrs []attribute.KeyValue, key string, value []string) []attribute.KeyValue {
-	if len(value) > 0 {
-		return append(attrs, attribute.StringSlice(key, value))
-	}
-	return attrs
-}
-
-func addIntAttr(attrs []attribute.KeyValue, key string, value int64) []attribute.KeyValue {
-	if value != 0 {
-		return append(attrs, attribute.Int64(key, value))
+func appendIfNotEmpty(attrs []otellog.KeyValue, key string, values []string) []otellog.KeyValue {
+	if len(values) > 0 {
+		return append(attrs, stringSlice(key, values))
 	}
 	return attrs
 }
 
 func (s *Service) EmitPolicyDenyEvent(event *types.PolicyDenyEvent) error {
-	if s.Service.Tracer == nil {
-		return errors.New("OpenTelemetry is not initialized , skip emitting policy deny event")
+	if s.Service.Logger == nil {
+		return errors.New("OpenTelemetry is not initialized, skip emitting policy deny event")
 	}
 
 	s.Config.Log.Info("Emitting policy deny event", "event", event)
 
-	ctx := context.Background()
-	_, span := s.Service.Tracer.Start(ctx, "policy.deny")
-	defer span.End()
+	var rec otellog.Record
+	rec.SetEventName("policy_deny")
+	rec.SetSeverity(otellog.SeverityWarn)
+	rec.SetBody(otellog.StringValue("Network policy denied traffic"))
+	ts := time.Unix(event.Timestamp, 0)
+	rec.SetTimestamp(ts)
 
-	// Build attributes conditionally - only add non-empty values
-	attrs := []attribute.KeyValue{
-		attribute.String("timestamp.formatted", time.Unix(event.Timestamp, 0).Format(time.RFC3339)),
+	attrs := []otellog.KeyValue{
+		otellog.String("cni.type", event.CNIType),
+		otellog.String("network.protocol", string(event.Protocol)),
+		otellog.String("node.name", event.NodeName),
+		otellog.String("source.namespace", event.SrcNamespace),
+		otellog.String("source.name", event.SrcName),
+		otellog.String("destination.namespace", event.DstNamespace),
+		otellog.String("destination.name", event.DstName),
 	}
-	attrs = addStringAttr(attrs, "cni.type", event.CNIType)
-	attrs = addStringAttr(attrs, "network.protocol", string(event.Protocol))
-	attrs = addStringAttr(attrs, "node.name", event.NodeName)
-	attrs = addStringAttr(attrs, "source.namespace", event.SrcNamespace)
-	attrs = addStringAttr(attrs, "source.name", event.SrcName)
-	attrs = addStringSliceAttr(attrs, "source.labels", event.SrcLabels)
-	attrs = addStringSliceAttr(attrs, "source.workloads", event.SrcWorkloads)
-	attrs = addStringAttr(attrs, "destination.namespace", event.DstNamespace)
-	attrs = addStringAttr(attrs, "destination.name", event.DstName)
-	attrs = addStringSliceAttr(attrs, "destination.labels", event.DstLabels)
-	attrs = addStringSliceAttr(attrs, "destination.workloads", event.DstWorkloads)
-	attrs = addIntAttr(attrs, "destination.port", int64(event.DstPort))
-	attrs = addStringSliceAttr(attrs, "egress.enforced_by", policiesToStrings(event.EgressEnforcedBy))
-	attrs = addStringSliceAttr(attrs, "ingress.enforced_by", policiesToStrings(event.IngressEnforcedBy))
+	attrs = appendIfNotEmpty(attrs, "source.labels", event.SrcLabels)
+	attrs = appendIfNotEmpty(attrs, "source.workloads", event.SrcWorkloads)
+	attrs = appendIfNotEmpty(attrs, "destination.labels", event.DstLabels)
+	attrs = appendIfNotEmpty(attrs, "destination.workloads", event.DstWorkloads)
+	if event.DstPort != 0 {
+		attrs = append(attrs, otellog.Int64("destination.port", int64(event.DstPort)))
+	}
+	attrs = appendIfNotEmpty(attrs, "egress.enforced_by", policiesToStrings(event.EgressEnforcedBy))
+	attrs = appendIfNotEmpty(attrs, "ingress.enforced_by", policiesToStrings(event.IngressEnforcedBy))
+	rec.AddAttributes(attrs...)
 
-	span.SetAttributes(attrs...)
+	s.Service.Logger.Emit(s.Config.Ctx, rec)
 	return nil
 }
 
 func (s *Service) Shutdown(ctx context.Context) error {
-	if s.Service.TracerProvider == nil {
+	if s.Service.LoggerProvider == nil {
 		return nil
 	}
 
-	return s.Service.TracerProvider.Shutdown(ctx)
+	return s.Service.LoggerProvider.Shutdown(ctx)
 }
