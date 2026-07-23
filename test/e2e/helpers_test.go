@@ -25,6 +25,7 @@ type key string
 const (
 	suiteCfgKey = key("suiteConfig")
 	loggerKey   = key("logger")
+	clientKey   = key("client")
 )
 
 func injectSetupLogger() env.Func {
@@ -47,20 +48,21 @@ func getSuiteConfig(ctx context.Context) suiteConfig {
 	return ctx.Value(suiteCfgKey).(suiteConfig)
 }
 
-func setupSharedK8sClient(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
-	t.Log("setup shared k8s client")
-
-	r, err := resources.New(config.Client().RESTConfig())
-	require.NoError(t, err, "failed to create controller runtime client")
-
-	err = securityv1alpha1.AddToScheme(r.GetScheme())
-	require.NoError(t, err)
-
-	return context.WithValue(ctx, key("client"), r)
+func injectClient() env.Func {
+	return func(ctx context.Context, config *envconf.Config) (context.Context, error) {
+		r, err := resources.New(config.Client().RESTConfig())
+		if err != nil {
+			return ctx, fmt.Errorf("cannot create k8s client: %w", err)
+		}
+		if err = securityv1alpha1.AddToScheme(r.GetScheme()); err != nil {
+			return ctx, fmt.Errorf("cannot add securityv1alpha1 to scheme: %w", err)
+		}
+		return context.WithValue(ctx, clientKey, r), nil
+	}
 }
 
 func getClient(ctx context.Context) *resources.Resources {
-	return ctx.Value(key("client")).(*resources.Resources)
+	return ctx.Value(clientKey).(*resources.Resources)
 }
 
 func getNamespace(ctx context.Context) string {

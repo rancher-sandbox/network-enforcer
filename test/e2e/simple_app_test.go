@@ -27,7 +27,6 @@ import (
 // - internal traffic through NodePort service.
 func TestCompleteFlow(t *testing.T) {
 	feature := features.New("Service same node").
-		Setup(setupSharedK8sClient).
 		Setup(setupTestNamespace).
 		Setup(setupSimpleAppWorkload).
 		// we send traffic to the TCP service and we expect it to succeed, this will generate proposals for the client and server deployments.

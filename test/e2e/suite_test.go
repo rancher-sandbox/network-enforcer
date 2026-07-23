@@ -41,6 +41,7 @@ func TestMain(m *testing.M) {
 		// we inject the suite config in the context so that each test can access parameters like the release name, namespace, image, etc.
 		injectSuiteConfig(testSuiteConf),
 		injectSetupLogger(),
+		injectClient(),
 		installCNI(testSuiteConf.cni),
 		installCertManager(),
 		installNetEnforcerChart(&testSuiteConf),
