@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -134,7 +135,7 @@ func Init(
 	// Client certs without a CA are silently ignored by the exporters.
 	// Reject the combination up front so users don't think mTLS is active.
 	if caCertPath == "" && (clientCertPath != "" || clientKeyPath != "") {
-		return nil, nil, fmt.Errorf("client certificate requires a CA certificate (caCertPath is empty)")
+		return nil, nil, errors.New("client certificate requires a CA certificate (caCertPath is empty)")
 	}
 
 	var exporter sdklog.Exporter
