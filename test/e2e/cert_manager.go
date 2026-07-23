@@ -27,6 +27,9 @@ func installCertManager() env.Func {
 			return ctx, err
 		}
 
+		logger := getSetupLogger(ctx)
+		logger.InfoContext(ctx, "🛠️ installing cert-manager chart",
+			"chart", jetstackRepoName+"/cert-manager", "version", certManagerVersion)
 		// cert-manager (and its webhook) must be ready before the CSI driver,
 		// which in turn must be ready before any pod mounts a CSI cert volume.
 		if err := manager.RunInstall(
@@ -53,6 +56,8 @@ func installCertManager() env.Func {
 		// we need the CSI driver on each node so that also pods on the control-plane can mount CSI volumes
 		csiOpts = append(csiOpts, generateKindControlPlaneTolerations("")...)
 
+		logger.InfoContext(ctx, "🛠️ installing cert-manager-csi-driver chart",
+			"chart", jetstackRepoName+"/cert-manager-csi-driver", "version", certManagerCSIVersion)
 		if err := manager.RunInstall(csiOpts...); err != nil {
 			return ctx, fmt.Errorf("install cert-manager-csi-driver: %w", err)
 		}

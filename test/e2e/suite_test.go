@@ -113,7 +113,7 @@ func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
 		helmOpts = append(helmOpts, generateKindControlPlaneTolerations("cniwatcher.")...)
 		helmOpts = append(helmOpts, generateKindControlPlaneTolerations("obi.")...)
 
-		logger.InfoContext(ctx, "installing network enforcer chart", "releaseName", testCfg.releaseName)
+		logger.InfoContext(ctx, "🛠️ installing network enforcer chart", "releaseName", testCfg.releaseName)
 		if err := manager.RunInstall(helmOpts...); err != nil {
 			return ctx, fmt.Errorf("install network enforcer chart: %w", err)
 		}
@@ -123,7 +123,7 @@ func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
 			return ctx, fmt.Errorf("create resources client: %w", err)
 		}
 
-		logger.InfoContext(ctx, "waiting for network enforcer controller")
+		logger.InfoContext(ctx, "⏲️ waiting for network enforcer controller")
 		if err = wait.For(
 			conditions.New(r).DeploymentAvailable("network-enforcer-controller-manager", testCfg.releaseNS),
 			wait.WithTimeout(defaultOperationTimeout),
@@ -131,7 +131,7 @@ func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
 			return ctx, fmt.Errorf("wait network enforcer deployment ready: %w", err)
 		}
 
-		logger.InfoContext(ctx, "waiting for cniwatcher")
+		logger.InfoContext(ctx, "⏲️ waiting for cniwatcher")
 		if err = wait.For(
 			conditions.New(r).DaemonSetReady(
 				&appsv1.DaemonSet{

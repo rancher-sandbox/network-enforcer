@@ -52,7 +52,7 @@ func installCilium(ctx context.Context, cfg *envconf.Config) (context.Context, e
 	}
 
 	logger := getSetupLogger(ctx)
-	logger.InfoContext(ctx, "installing cilium chart", "chart", repoLocalName+chartPath, "version", version)
+	logger.InfoContext(ctx, "🛠️ installing cilium chart", "chart", repoLocalName+chartPath, "version", version)
 	if err := manager.RunInstall(helmOpts...); err != nil {
 		return ctx, fmt.Errorf("installing cilium chart: %w", err)
 	}
@@ -63,7 +63,7 @@ func installCilium(ctx context.Context, cfg *envconf.Config) (context.Context, e
 		return ctx, fmt.Errorf("create resources client: %w", err)
 	}
 
-	logger.InfoContext(ctx, "waiting for", "operator", operatorName)
+	logger.InfoContext(ctx, "⏲️ waiting for", "operator", operatorName)
 	if err = wait.For(
 		conditions.New(r).DeploymentAvailable(operatorName, namespace),
 		wait.WithTimeout(defaultOperationTimeout),
@@ -71,7 +71,7 @@ func installCilium(ctx context.Context, cfg *envconf.Config) (context.Context, e
 		return ctx, fmt.Errorf("wait cilium operator deployment ready: %w", err)
 	}
 
-	logger.InfoContext(ctx, "waiting for", "daemonset", daemonSetName)
+	logger.InfoContext(ctx, "⏲️ waiting for", "daemonset", daemonSetName)
 	if err = wait.For(
 		conditions.New(r).DaemonSetReady(
 			&appsv1.DaemonSet{
