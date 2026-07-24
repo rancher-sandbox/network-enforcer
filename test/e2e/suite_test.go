@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 		injectSecurityV1Alpha1Client(),
 		installCNI(),
 		installCertManager(),
-		installNetEnforcerChart(&testSuiteConf),
+		installNetEnforcerChart(),
 	}
 
 	finishFuncs := []env.Func{
@@ -82,11 +82,12 @@ func TestMain(m *testing.M) {
 	os.Exit(testEnv.Run(m))
 }
 
-func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
+func installNetEnforcerChart() env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 		manager := helm.New(cfg.KubeconfigFile())
 
+		testCfg := getSuiteConfig(ctx)
 		controllerRepo, controllerTag := parseImage(testCfg.controllerImage)
 		cniWatcherRepo, cniWatcherTag := parseImage(testCfg.cniWatcherImage)
 
