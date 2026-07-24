@@ -51,6 +51,28 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+cniwatcher selector labels
+*/}}
+{{- define "network-enforcer.cniwatcher.selectorLabels" -}}
+app.kubernetes.io/component: cniwatcher
+{{ include "network-enforcer.selectorLabels" . }}
+{{- end -}}
+
+{{/*
+This is used by the controller to list cniwatcher pods.
+*/}}
+{{- define "network-enforcer.cniwatcher.selectorLabelsString" -}}
+  {{- $yaml := include "network-enforcer.cniwatcher.selectorLabels" . -}}
+  {{- $m := (fromYaml $yaml) | default dict -}}
+  {{- $keys := keys $m | sortAlpha -}}
+  {{- $out := list -}}
+  {{- range $k := $keys -}}
+    {{- $out = append $out (printf "%s=%v" $k (get $m $k)) -}}
+  {{- end -}}
+  {{- join "," $out -}}
+{{- end -}}
+
+{{/*
 DNS name of the controller OTLP service; also a SAN on the controller cert.
 */}}
 {{- define "network-enforcer.controller.otlpServiceDNS" -}}

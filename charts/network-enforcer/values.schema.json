@@ -271,6 +271,9 @@
                 },
                 "tolerations": {
                     "type": "array"
+                },
+                "wnpStatusUpdateInterval": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false
