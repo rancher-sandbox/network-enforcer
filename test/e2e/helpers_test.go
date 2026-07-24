@@ -48,7 +48,7 @@ func getSuiteConfig(ctx context.Context) suiteConfig {
 	return ctx.Value(suiteCfgKey).(suiteConfig)
 }
 
-func injectClient() env.Func {
+func injectSecurityV1Alpha1Client() env.Func {
 	return func(ctx context.Context, config *envconf.Config) (context.Context, error) {
 		r, err := resources.New(config.Client().RESTConfig())
 		if err != nil {
@@ -61,7 +61,7 @@ func injectClient() env.Func {
 	}
 }
 
-func getClient(ctx context.Context) *resources.Resources {
+func getSecurityV1Alpha1Client(ctx context.Context) *resources.Resources {
 	return ctx.Value(clientKey).(*resources.Resources)
 }
 
@@ -74,7 +74,7 @@ func setupTestNamespace(ctx context.Context, t *testing.T, _ *envconf.Config) co
 	// RandomName already adds a `-` so we need to trim it from our prefix
 	testNamespace := envconf.RandomName(defaultNamespacePref, 32)
 	t.Logf("creating test namespace: %q", testNamespace)
-	err := getClient(ctx).Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+	err := getSecurityV1Alpha1Client(ctx).Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 		Name: testNamespace,
 	}})
 	require.NoError(t, err, "failed to create test namespace %q", testNamespace)
@@ -86,13 +86,13 @@ func teardownTestNamespace(ctx context.Context, t *testing.T, _ *envconf.Config)
 	namespace := getNamespace(ctx)
 
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
-	err := getClient(ctx).Delete(ctx, ns)
+	err := getSecurityV1Alpha1Client(ctx).Delete(ctx, ns)
 	if err != nil && !apierrors.IsNotFound(err) {
 		require.NoError(t, err, "failed to delete namespace %q", namespace)
 	}
 
 	err = wait.For(
-		conditions.New(getClient(ctx)).ResourceDeleted(ns),
+		conditions.New(getSecurityV1Alpha1Client(ctx)).ResourceDeleted(ns),
 		wait.WithTimeout(defaultOperationTimeout),
 	)
 	require.NoError(t, err, "wait namespace deletion")

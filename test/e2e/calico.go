@@ -18,7 +18,7 @@ import (
 func waitGoldmaneDeployment(ctx context.Context, calicoNamespace string) error {
 	const goldmaneDeployment = "goldmane"
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	r := getClient(ctx)
+	r := getSecurityV1Alpha1Client(ctx)
 	// this is needed by the cniwatcher to scrape flows
 	logger.InfoContext(ctx, "⏲️ waiting for goldmane deployment to be ready")
 	return wait.For(
@@ -30,7 +30,7 @@ func waitGoldmaneDeployment(ctx context.Context, calicoNamespace string) error {
 func waitGoldmaneConfigMap(ctx context.Context, calicoNamespace string) (*corev1.ConfigMap, error) {
 	const goldmaneConfigMapName = "goldmane-ca-bundle"
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	r := getClient(ctx)
+	r := getSecurityV1Alpha1Client(ctx)
 
 	logger.InfoContext(ctx, "⏲️ waiting for Goldmane CA bundle configmap")
 	caBundleCM := &corev1.ConfigMap{
@@ -51,7 +51,7 @@ func waitGoldmaneConfigMap(ctx context.Context, calicoNamespace string) (*corev1
 func waitGoldmaneSecret(ctx context.Context, calicoNamespace string) (*corev1.Secret, error) {
 	const goldmaneSecretName = "goldmane-key-pair"
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	r := getClient(ctx)
+	r := getSecurityV1Alpha1Client(ctx)
 
 	logger.InfoContext(ctx, "⏲️ waiting for Goldmane secret")
 	goldmaneSecret := &corev1.Secret{
@@ -110,7 +110,7 @@ func generateCNIWatcherSecret(ctx context.Context, configMap *corev1.ConfigMap, 
 		},
 	}
 
-	if err := getClient(ctx).Create(ctx, cniWatcherSecret); err != nil {
+	if err := getSecurityV1Alpha1Client(ctx).Create(ctx, cniWatcherSecret); err != nil {
 		return fmt.Errorf("cannot create cniwatcher secret: %w", err)
 	}
 	return nil
@@ -208,7 +208,7 @@ func installCalico(ctx context.Context, cfg *envconf.Config) (context.Context, e
 	}
 
 	// Create the release namespace since we need to put the secret for the cniwatcher there
-	r := getClient(ctx)
+	r := getSecurityV1Alpha1Client(ctx)
 	netEnforcerReleaseNs := getSuiteConfig(ctx).releaseNS
 	logger.InfoContext(ctx, "🛠️ create", "namespace", netEnforcerReleaseNs)
 	if err = r.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{

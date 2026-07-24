@@ -165,7 +165,7 @@ func assessPolicyProposalsGenerated(ctx context.Context, t *testing.T, _ *envcon
 
 	var proposals securityv1alpha1.WorkloadNetworkPolicyProposalList
 	require.Eventually(t, func() bool {
-		err := getClient(ctx).WithNamespace(namespace).List(ctx, &proposals)
+		err := getSecurityV1Alpha1Client(ctx).WithNamespace(namespace).List(ctx, &proposals)
 		require.NoError(t, err, "failed to list network policy proposals")
 
 		foundClientEgress := false
@@ -203,7 +203,7 @@ func assessPolicyProposalsPromoted(ctx context.Context, t *testing.T, _ *envconf
 
 	// we recover the proposal from the context.
 	proposals := ctx.Value(key("proposals")).([]securityv1alpha1.WorkloadNetworkPolicyProposal)
-	client := getClient(ctx)
+	client := getSecurityV1Alpha1Client(ctx)
 
 	policies := make([]securityv1alpha1.WorkloadNetworkPolicy, 0, len(proposals))
 	for _, proposal := range proposals {
@@ -237,7 +237,7 @@ func assessProposalsAreNotRegenerated(ctx context.Context, t *testing.T, _ *envc
 
 	// we recover the proposal from the context.
 	storedProposals := ctx.Value(key("proposals")).([]securityv1alpha1.WorkloadNetworkPolicyProposal)
-	client := getClient(ctx)
+	client := getSecurityV1Alpha1Client(ctx)
 
 	for _, proposal := range storedProposals {
 		require.Never(t, func() bool {
@@ -251,7 +251,7 @@ func assessProposalsAreNotRegenerated(ctx context.Context, t *testing.T, _ *envc
 
 func assessPoliciesAreNotUpdatedInMonitorMode(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
 	storedPolicies := ctx.Value(key("policies")).([]securityv1alpha1.WorkloadNetworkPolicy)
-	client := getClient(ctx)
+	client := getSecurityV1Alpha1Client(ctx)
 
 	for _, storedPolicy := range storedPolicies {
 		require.Never(t, func() bool {
@@ -279,7 +279,7 @@ func assessPoliciesAreNotUpdatedInMonitorMode(ctx context.Context, t *testing.T,
 
 func assessK8sNetworkPoliciesAreCreated(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
 	storedPolicies := ctx.Value(key("policies")).([]securityv1alpha1.WorkloadNetworkPolicy)
-	client := getClient(ctx)
+	client := getSecurityV1Alpha1Client(ctx)
 
 	// For each policy we change mode to protect
 	for _, policy := range storedPolicies {
@@ -346,7 +346,7 @@ func checkViolations(ctx context.Context, t *testing.T, _ *envconf.Config) conte
 	}
 
 	storedPolicies := ctx.Value(key("policies")).([]securityv1alpha1.WorkloadNetworkPolicy)
-	client := getClient(ctx)
+	client := getSecurityV1Alpha1Client(ctx)
 
 	for _, policy := range storedPolicies {
 		require.Eventually(t, func() bool {
