@@ -24,6 +24,10 @@ const (
 	defaultHelmTimeout      = 3 * time.Minute
 	defaultOperationTimeout = 2 * time.Minute
 	defaultPodExecTimeout   = 45 * time.Second
+
+	// Environment variables used in e2e tests.
+	cniEnvVar        = "E2E_CNI"
+	cniVersionEnvVar = "E2E_CNI_VERSION"
 )
 
 type suiteConfig struct {
@@ -36,19 +40,22 @@ type suiteConfig struct {
 	cniWatcherImage    string
 	namespacePrefix    string
 	cni                cniType
+	cniVersion         string
 	drainFlowsInterval time.Duration
 }
 
 func loadSuiteConfig() suiteConfig {
 	return suiteConfig{
-		logsDir:            defaultLogsDir,
-		chartPath:          defaultChartPath,
-		releaseName:        defaultReleaseName,
-		releaseNS:          defaultReleaseNS,
-		controllerImage:    defaultControllerImage,
-		cniWatcherImage:    defaultCNIWatcherImage,
-		namespacePrefix:    defaultNamespacePref,
-		cni:                cniType(readEnvOrDefault("E2E_CNI", string(defaultCNI))),
+		logsDir:         defaultLogsDir,
+		chartPath:       defaultChartPath,
+		releaseName:     defaultReleaseName,
+		releaseNS:       defaultReleaseNS,
+		controllerImage: defaultControllerImage,
+		cniWatcherImage: defaultCNIWatcherImage,
+		namespacePrefix: defaultNamespacePref,
+		cni:             cniType(readEnvOrDefault(cniEnvVar, string(defaultCNI))),
+		// we don't have a default value here, it will be set by CNI specific code.
+		cniVersion:         readEnvOrDefault(cniVersionEnvVar, ""),
 		kindConfigPath:     noCNIConfigPath,
 		drainFlowsInterval: defaultDrainFlowsInterval,
 	}

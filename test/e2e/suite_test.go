@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,8 +30,22 @@ func TestMain(m *testing.M) {
 	testSuiteConf := loadSuiteConfig()
 
 	path := conf.ResolveKubeConfigFile()
-	cfg := envconf.NewWithKubeConfig(path)
+	// WithFailFast allows us to skip the teardown phase in case of test failures
+	// https://github.com/kubernetes-sigs/e2e-framework/blob/1cdb40b1d89482bc7ce0e7ab2e530d2426a7ea91/pkg/env/env.go#L538
+	cfg := envconf.NewWithKubeConfig(path).WithFailFast()
 	testEnv = env.NewWithConfig(cfg)
+
+	var suiteFailed atomic.Bool
+	// we initially set it to true so that if we fail during setup, we can skip teardown
+	suiteFailed.Store(true)
+	testEnv.AfterEachTest(func(ctx context.Context, _ *envconf.Config, t *testing.T) (context.Context, error) {
+		if t.Failed() {
+			suiteFailed.Store(true)
+		} else {
+			suiteFailed.Store(false)
+		}
+		return ctx, nil
+	})
 
 	clusterName := envconf.RandomName(testSuiteConf.namespacePrefix, 20)
 
@@ -38,17 +53,28 @@ func TestMain(m *testing.M) {
 		envfuncs.CreateClusterWithConfig(kind.NewProvider(), clusterName, testSuiteConf.kindConfigPath),
 		envfuncs.LoadImageToCluster(clusterName, testSuiteConf.controllerImage),
 		envfuncs.LoadImageToCluster(clusterName, testSuiteConf.cniWatcherImage),
-		injectSetupLogger(),
-		installCNI(testSuiteConf.cni),
-		installCertManager(),
-		installNetEnforcerChart(&testSuiteConf),
 		// we inject the suite config in the context so that each test can access parameters like the release name, namespace, image, etc.
 		injectSuiteConfig(testSuiteConf),
+		injectSetupLogger(),
+		injectSecurityV1Alpha1Client(),
+		installCNI(),
+		installCertManager(),
+		installNetEnforcerChart(),
 	}
 
 	finishFuncs := []env.Func{
 		envfuncs.ExportClusterLogs(clusterName, testSuiteConf.logsDir),
-		envfuncs.DestroyCluster(clusterName),
+		func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
+			if suiteFailed.Load() {
+				getSetupLogger(ctx).InfoContext(
+					ctx,
+					"⏩ Skipping cluster destroy to debug",
+					"clusterName", clusterName,
+				)
+				return ctx, nil
+			}
+			return envfuncs.DestroyCluster(clusterName)(ctx, cfg)
+		},
 	}
 
 	testEnv.Setup(setupFuncs...)
@@ -56,11 +82,12 @@ func TestMain(m *testing.M) {
 	os.Exit(testEnv.Run(m))
 }
 
-func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
+func installNetEnforcerChart() env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 		manager := helm.New(cfg.KubeconfigFile())
 
+		testCfg := getSuiteConfig(ctx)
 		controllerRepo, controllerTag := parseImage(testCfg.controllerImage)
 		cniWatcherRepo, cniWatcherTag := parseImage(testCfg.cniWatcherImage)
 
@@ -83,7 +110,11 @@ func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
 			helm.WithTimeout(defaultHelmTimeout.String()),
 		}
 
-		logger.InfoContext(ctx, "installing network enforcer chart", "releaseName", testCfg.releaseName)
+		// we want to install these agents on all the nodes (control-plane included)
+		helmOpts = append(helmOpts, generateKindControlPlaneTolerations("cniwatcher.")...)
+		helmOpts = append(helmOpts, generateKindControlPlaneTolerations("obi.")...)
+
+		logger.InfoContext(ctx, "🛠️ installing network enforcer chart", "releaseName", testCfg.releaseName)
 		if err := manager.RunInstall(helmOpts...); err != nil {
 			return ctx, fmt.Errorf("install network enforcer chart: %w", err)
 		}
@@ -93,7 +124,7 @@ func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
 			return ctx, fmt.Errorf("create resources client: %w", err)
 		}
 
-		logger.InfoContext(ctx, "waiting for network enforcer controller")
+		logger.InfoContext(ctx, "⏲️ waiting for network enforcer controller")
 		if err = wait.For(
 			conditions.New(r).DeploymentAvailable("network-enforcer-controller-manager", testCfg.releaseNS),
 			wait.WithTimeout(defaultOperationTimeout),
@@ -101,7 +132,7 @@ func installNetEnforcerChart(testCfg *suiteConfig) env.Func {
 			return ctx, fmt.Errorf("wait network enforcer deployment ready: %w", err)
 		}
 
-		logger.InfoContext(ctx, "waiting for cniwatcher")
+		logger.InfoContext(ctx, "⏲️ waiting for cniwatcher")
 		if err = wait.For(
 			conditions.New(r).DaemonSetReady(
 				&appsv1.DaemonSet{

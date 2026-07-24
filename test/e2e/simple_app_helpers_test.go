@@ -34,7 +34,7 @@ func teardownSimpleAppWorkload(ctx context.Context, t *testing.T, _ *envconf.Con
 
 	err := decoder.DeleteWithManifestDir(
 		ctx,
-		getClient(ctx),
+		getSecurityV1Alpha1Client(ctx),
 		testFolder,
 		simpleAppManifest,
 		[]resources.DeleteOption{},
@@ -46,7 +46,7 @@ func teardownSimpleAppWorkload(ctx context.Context, t *testing.T, _ *envconf.Con
 		ObjectMeta: metav1.ObjectMeta{Name: simpleAppClientDeploymentName, Namespace: namespace},
 	}
 	err = wait.For(
-		conditions.New(getClient(ctx)).ResourceDeleted(clientDeployment),
+		conditions.New(getSecurityV1Alpha1Client(ctx)).ResourceDeleted(clientDeployment),
 		wait.WithTimeout(defaultOperationTimeout),
 	)
 	require.NoError(t, err, "wait client deployment deletion")
@@ -55,7 +55,7 @@ func teardownSimpleAppWorkload(ctx context.Context, t *testing.T, _ *envconf.Con
 		ObjectMeta: metav1.ObjectMeta{Name: simpleAppServerDeploymentName, Namespace: namespace},
 	}
 	err = wait.For(
-		conditions.New(getClient(ctx)).ResourceDeleted(serverDeployment),
+		conditions.New(getSecurityV1Alpha1Client(ctx)).ResourceDeleted(serverDeployment),
 		wait.WithTimeout(defaultOperationTimeout),
 	)
 	require.NoError(t, err, "wait server deployment deletion")
@@ -70,7 +70,7 @@ func setupSimpleAppWorkload(ctx context.Context, t *testing.T, _ *envconf.Config
 
 	err := decoder.ApplyWithManifestDir(
 		ctx,
-		getClient(ctx),
+		getSecurityV1Alpha1Client(ctx),
 		testFolder,
 		simpleAppManifest,
 		[]resources.CreateOption{},
@@ -80,13 +80,13 @@ func setupSimpleAppWorkload(ctx context.Context, t *testing.T, _ *envconf.Config
 	require.NoError(t, err, "failed to apply simple app manifest")
 
 	err = wait.For(
-		conditions.New(getClient(ctx)).DeploymentAvailable(simpleAppClientDeploymentName, namespace),
+		conditions.New(getSecurityV1Alpha1Client(ctx)).DeploymentAvailable(simpleAppClientDeploymentName, namespace),
 		wait.WithTimeout(defaultOperationTimeout),
 	)
 	require.NoError(t, err, "wait client deployment ready")
 
 	err = wait.For(
-		conditions.New(getClient(ctx)).DeploymentAvailable(simpleAppServerDeploymentName, namespace),
+		conditions.New(getSecurityV1Alpha1Client(ctx)).DeploymentAvailable(simpleAppServerDeploymentName, namespace),
 		wait.WithTimeout(defaultOperationTimeout),
 	)
 	require.NoError(t, err, "wait server deployment ready")
@@ -138,7 +138,7 @@ func execInSimpleClientDeployment(
 	t.Helper()
 
 	namespace := getNamespace(ctx)
-	r := getClient(ctx)
+	r := getSecurityV1Alpha1Client(ctx)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
