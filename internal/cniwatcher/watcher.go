@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
+	securityv1alpha1 "github.com/rancher-sandbox/network-enforcer/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/jdrews/go-tailer/fswatcher"
 	"github.com/jdrews/go-tailer/glob"
 	"github.com/rancher-sandbox/network-enforcer/internal/otel"
 	"github.com/rancher-sandbox/network-enforcer/internal/types"
 	"github.com/rancher-sandbox/network-enforcer/internal/violationbuf"
 	"github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -134,7 +136,7 @@ func (w *Watcher) recordToBuffer(event *types.PolicyDenyEvent) {
 		DstLabels:              event.DstLabels,
 		Protocol:               event.Protocol,
 		DstPort:                event.DstPort,
-		Action:                 "protect",
+		Action:                 securityv1alpha1.WorkloadNetworkPolicyModeProtect,
 		DenyingPolicyNamespace: denyingPolicyNamespace,
 		DenyingPolicyName:      denyingPolicyName,
 	}

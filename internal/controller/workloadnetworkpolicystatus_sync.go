@@ -286,7 +286,7 @@ func convertProtoViolation(v *agentv1.ViolationRecord) securityv1alpha1.Violatio
 		Dest:                   dest,
 		Protocol:               corev1.Protocol(v.GetProtocol()),
 		DstPort:                v.GetDstPort(),
-		Action:                 v.GetAction(),
+		Action:                 securityv1alpha1.WorkloadNetworkPolicyMode(v.GetAction()),
 		DenyingPolicyNamespace: v.GetDenyingPolicyNamespace(),
 		DenyingPolicyName:      v.GetDenyingPolicyName(),
 	}

@@ -77,7 +77,7 @@ func (s *GRPCServer) ScrapeViolations(
 			DestLabels:             rec.DstLabels,
 			Protocol:               string(rec.Protocol),
 			DstPort:                rec.DstPort,
-			Action:                 rec.Action,
+			Action:                 string(rec.Action),
 			DenyingPolicyNamespace: rec.DenyingPolicyNamespace,
 			DenyingPolicyName:      rec.DenyingPolicyName,
 		})

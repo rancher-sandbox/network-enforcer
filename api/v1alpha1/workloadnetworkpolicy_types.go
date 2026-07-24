@@ -101,9 +101,8 @@ type ViolationRecord struct {
 	// +kubebuilder:validation:Maximum=65535
 	// +optional
 	DstPort int32 `json:"dstPort,omitempty"`
-	// Action is the enforcement action ("protect", the only mode that produces
-	// denies).
-	Action string `json:"action"`
+	// Action is the enforcement action taken (monitor or protect).
+	Action WorkloadNetworkPolicyMode `json:"action"`
 	// DenyingPolicyNamespace is the namespace of the NetworkPolicy that denied
 	// the flow.
 	// +optional

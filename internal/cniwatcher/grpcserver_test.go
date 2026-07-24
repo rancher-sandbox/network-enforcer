@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	securityv1alpha1 "github.com/rancher-sandbox/network-enforcer/api/v1alpha1"
 	"github.com/rancher-sandbox/network-enforcer/internal/cniwatcher"
 	"github.com/rancher-sandbox/network-enforcer/internal/types"
 	"github.com/rancher-sandbox/network-enforcer/internal/violationbuf"
@@ -164,7 +165,7 @@ func TestProcessPolicyDenyEvent_RecordsToBuffer(t *testing.T) {
 	require.Equal(t, "svc1", records[0].DstName)
 	require.Equal(t, corev1.ProtocolTCP, records[0].Protocol)
 	require.Equal(t, int32(443), records[0].DstPort)
-	require.Equal(t, "protect", records[0].Action)
+	require.Equal(t, securityv1alpha1.WorkloadNetworkPolicyModeProtect, records[0].Action)
 	require.Equal(t, "deny-all", records[0].DenyingPolicyName)
 	require.Equal(t, "ns1", records[0].DenyingPolicyNamespace)
 }

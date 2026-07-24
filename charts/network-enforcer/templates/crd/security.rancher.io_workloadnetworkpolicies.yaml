@@ -571,9 +571,11 @@ spec:
                       description: Violation is the violation record that was acknowledged.
                       properties:
                         action:
-                          description: |-
-                            Action is the enforcement action ("protect", the only mode that produces
-                            denies).
+                          description: Action is the enforcement action taken (monitor
+                            or protect).
+                          enum:
+                          - monitor
+                          - protect
                           type: string
                         denyingPolicyName:
                           description: DenyingPolicyName is the name of the NetworkPolicy
@@ -698,9 +700,11 @@ spec:
                     policy violation.
                   properties:
                     action:
-                      description: |-
-                        Action is the enforcement action ("protect", the only mode that produces
-                        denies).
+                      description: Action is the enforcement action taken (monitor
+                        or protect).
+                      enum:
+                      - monitor
+                      - protect
                       type: string
                     denyingPolicyName:
                       description: DenyingPolicyName is the name of the NetworkPolicy
