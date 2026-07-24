@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -336,12 +337,9 @@ func assessK8sNetworkPoliciesAreCreated(ctx context.Context, t *testing.T, _ *en
 }
 
 func checkViolations(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {
-	cni := getSuiteConfig(ctx).cni
-	if cni == cilium || cni == calico {
+	if getSuiteConfig(ctx).cni == cilium {
 		// todo!: With Cilium we will never receive violations in the policies because
 		// of this issue https://github.com/rancher-sandbox/network-enforcer/issues/19
-		//
-		// todo!: we still need to understand why Calico doesn't report violations
 		return ctx
 	}
 
@@ -349,15 +347,42 @@ func checkViolations(ctx context.Context, t *testing.T, _ *envconf.Config) conte
 	client := getSecurityV1Alpha1Client(ctx)
 
 	for _, policy := range storedPolicies {
-		require.Eventually(t, func() bool {
-			var updatedPolicy securityv1alpha1.WorkloadNetworkPolicy
-			if err := client.Get(ctx, policy.Name, policy.Namespace, &updatedPolicy); err != nil {
-				return false
-			}
+		if slices.Contains(policy.Spec.PolicyTemplate.PolicyTypes, networkingv1.PolicyTypeEgress) {
+			// for the egress policy we expect a violation
+			require.Eventually(t, func() bool {
+				if err := client.Get(ctx, policy.Name, policy.Namespace, &policy); err != nil {
+					return false
+				}
+				// Check if there are any violations
+				if len(policy.Status.Violations) == 0 {
+					return false
+				}
+				t.Logf("found violations in egress policy %q: %v",
+					policy.NamespacedName().String(), policy.Status.Violations)
+				return true
+				// even if the sync is pretty fast in e2e test (~3s)
+				// the cniwatcher will receive violations with a certain interval from the CNI (e.g. see `calicoAggregationInterval`)
+				// for this reason we keep the timeout pretty high.
+			}, defaultOperationTimeout, 1*time.Second)
 
-			// Check if there are any violations
-			return len(updatedPolicy.Status.Violations) > 0
-		}, defaultOperationTimeout, 1*time.Second)
+			// Assert some fields on the violation
+			require.Len(t, policy.Status.Violations, 1)
+			require.Equal(t, 1, policy.Status.ViolationCount)
+			require.Equal(t, 1, policy.Status.ActiveViolationCount)
+			violation := policy.Status.Violations[0]
+			require.Equal(t, "egress", violation.Direction)
+			require.Equal(t, corev1.ProtocolUDP, violation.Protocol)
+			require.Equal(t, simpleAppUDPServerPort, violation.DstPort)
+			require.Equal(t, securityv1alpha1.WorkloadNetworkPolicyModeProtect, violation.Action)
+		} else {
+			require.Never(t, func() bool {
+				if err := client.Get(ctx, policy.Name, policy.Namespace, &policy); err != nil {
+					return false
+				}
+				// for the ingress policy we should never have violations
+				return len(policy.Status.Violations) > 0
+			}, 2*getSuiteConfig(ctx).wnpStatusUpdateInterval, 1*time.Second)
+		}
 	}
 	return ctx
 }
