@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"os"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"sigs.k8s.io/e2e-framework/klient/k8s"
 	"sigs.k8s.io/e2e-framework/klient/wait"
 	"sigs.k8s.io/e2e-framework/klient/wait/conditions"
@@ -21,6 +23,21 @@ func waitGoldmaneDeployment(ctx context.Context, calicoNamespace string) error {
 	r := getSecurityV1Alpha1Client(ctx)
 	// this is needed by the cniwatcher to scrape flows
 	logger.InfoContext(ctx, "⏲️ waiting for goldmane deployment to be ready")
+
+	// DeploymentAvailable will return an error if the deployment is not found,
+	// for this reason we first need to check the deployment is present before
+	// waiting for it to be ready.
+	if err := wait.For(
+		conditions.New(r).ResourceMatch(&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      goldmaneDeployment,
+				Namespace: calicoNamespace,
+			},
+		}, func(_ k8s.Object) bool { return true }),
+		wait.WithTimeout(defaultOperationTimeout),
+	); err != nil {
+		return fmt.Errorf("goldmane deployment not found: %w", err)
+	}
 	return wait.For(
 		conditions.New(r).DeploymentAvailable(goldmaneDeployment, calicoNamespace),
 		wait.WithTimeout(defaultOperationTimeout),
