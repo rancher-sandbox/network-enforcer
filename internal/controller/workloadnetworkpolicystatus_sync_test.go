@@ -72,7 +72,7 @@ func newCniwatcherPod(name, namespace, nodeName, ip string) *corev1.Pod {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-			Labels:    map[string]string{"app.kubernetes.io/component": "cniwatcher"},
+			Labels:    map[string]string{"app.kubernetes.io/name": "network-enforcer-cniwatcher"},
 		},
 		Spec: corev1.PodSpec{
 			NodeName: nodeName,
@@ -523,7 +523,7 @@ func TestAgentClientPoolUpdatePool(t *testing.T) {
 			Port: 50051,
 		},
 		Namespace:           "test-ns",
-		LabelSelectorString: "app.kubernetes.io/component=cniwatcher",
+		LabelSelectorString: "app.kubernetes.io/name=network-enforcer-cniwatcher",
 		Logger:              slog.Default(),
 	})
 	require.NoError(t, err)
