@@ -39,6 +39,26 @@ spec:
         env:
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: {{ quote .Values.kubernetesClusterDomain }}
+        {{- with .Values.otel }}
+        {{- if .endpoint }}
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: {{ quote .endpoint }}
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: {{ quote .protocol }}
+        {{- if .caCert }}
+        - name: OTEL_EXPORTER_OTLP_CERTIFICATE
+          value: {{ quote .caCert }}
+        {{- end }}
+        {{- if .clientCert }}
+        - name: OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE
+          value: {{ quote .clientCert }}
+        {{- end }}
+        {{- if .clientKey }}
+        - name: OTEL_EXPORTER_OTLP_CLIENT_KEY
+          value: {{ quote .clientKey }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
         {{- with .Values.controller.env }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

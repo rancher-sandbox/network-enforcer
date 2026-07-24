@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	otellog "go.opentelemetry.io/otel/log"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,6 +22,8 @@ import (
 	agentv1 "github.com/rancher-sandbox/network-enforcer/proto/agent/v1"
 )
 
+const EventNamePolicyViolationAcknowledged = "policy_violation_acknowledged"
+
 type AgentClientPoolAPI interface {
 	UpdatePool(ctx context.Context, reader client.Reader) (map[string]grpcexporter.AgentClientAPI, error)
 	MarkStaleAgentClient(nodeName string)
@@ -28,21 +31,24 @@ type AgentClientPoolAPI interface {
 
 // +kubebuilder:rbac:groups=security.rancher.io,resources=workloadnetworkpolicies/status,verbs=get;patch;update
 
-// WorkloadNetworkPolicyStatusSync periodically scrapes violation records from
-// cniwatcher pods, correlates denies to the owning WorkloadNetworkPolicy, and
-// writes status and annotations via a two-phase patch.
+// WorkloadNetworkPolicyStatusSync scrapes cniwatcher pods, correlates denies
+// to the owning WNP, and writes status/annotations via two-phase patch.
+// When eventLogger is set it emits policy_violation_acknowledged after a
+// successful status patch (ordering guard, no duplicate logs on retry).
 type WorkloadNetworkPolicyStatusSync struct {
 	client.Client
 
 	agentClientPool AgentClientPoolAPI
 	updateInterval  time.Duration
+	eventLogger     otellog.Logger
 	logger          logr.Logger
 }
 
-// WorkloadNetworkPolicyStatusSyncConfig holds the configuration for the sync runnable.
 type WorkloadNetworkPolicyStatusSyncConfig struct {
 	AgentPoolConf  grpcexporter.AgentClientPoolConfig
 	UpdateInterval time.Duration
+	// EventLogger for OTLP policy_violation_acknowledged; nil = disabled.
+	EventLogger otellog.Logger
 }
 
 func NewWorkloadNetworkPolicyStatusSync(
@@ -62,11 +68,11 @@ func NewWorkloadNetworkPolicyStatusSync(
 		Client:          c,
 		agentClientPool: agentClientPool,
 		updateInterval:  config.UpdateInterval,
+		eventLogger:     config.EventLogger,
 	}, nil
 }
 
-// Start implements manager.Runnable. It runs the periodic sync loop until the
-// context is cancelled.
+// Start implements manager.Runnable. Runs the periodic sync loop.
 func (r *WorkloadNetworkPolicyStatusSync) Start(ctx context.Context) error {
 	r.logger = log.FromContext(ctx).WithName("WorkloadNetworkPolicyStatusSync")
 	r.logger.Info("Starting", "interval", r.updateInterval)
@@ -87,8 +93,7 @@ func (r *WorkloadNetworkPolicyStatusSync) Start(ctx context.Context) error {
 	}
 }
 
-// sync runs one full sync cycle: discover cniwatcher pods, scrape violations,
-// correlate denies to WNPs, and update status + annotations.
+// sync runs one cycle: discover agents, scrape, correlate, patch.
 func (r *WorkloadNetworkPolicyStatusSync) sync(ctx context.Context) error {
 	var wnpList securityv1alpha1.WorkloadNetworkPolicyList
 	if err := r.List(ctx, &wnpList); err != nil {
@@ -134,9 +139,7 @@ func (r *WorkloadNetworkPolicyStatusSync) sync(ctx context.Context) error {
 	return nil
 }
 
-// buildOwnershipIndex lists all NetworkPolicies and builds a map from
-// NetworkPolicy key → owning WNP key. Only NetworkPolicies whose controller
-// OwnerReference matches a known WNP are indexed.
+// buildOwnershipIndex maps NetworkPolicy keys to their owning WNP key.
 func (r *WorkloadNetworkPolicyStatusSync) buildOwnershipIndex(
 	ctx context.Context,
 	wnpByKey map[types.NamespacedName]*securityv1alpha1.WorkloadNetworkPolicy,
@@ -161,9 +164,8 @@ func (r *WorkloadNetworkPolicyStatusSync) buildOwnershipIndex(
 	return index, nil
 }
 
-// findWNPOwnerRef scans the OwnerReferences of a NetworkPolicy and returns
-// the NamespacedName of the owning WNP if a matching controller reference
-// is found and corresponds to a known WNP in wnpByKey.
+// findWNPOwnerRef returns the owning WNP NamespacedName from a
+// NetworkPolicy's OwnerReferences that matches a known WNP.
 func findWNPOwnerRef(
 	refs []metav1.OwnerReference,
 	namespace, apiVersion, kind string,
@@ -182,8 +184,8 @@ func findWNPOwnerRef(
 	return types.NamespacedName{}, false
 }
 
-// scrapeAllNodes iterates over all clients in the pool and scrapes violations
-// from reachable nodes. Unreachable nodes are marked stale and skipped.
+// scrapeAllNodes scrapes violations from all reachable nodes;
+// unreachable nodes are marked stale.
 func (r *WorkloadNetworkPolicyStatusSync) scrapeAllNodes(
 	ctx context.Context,
 	clients map[string]grpcexporter.AgentClientAPI,
@@ -209,11 +211,8 @@ func (r *WorkloadNetworkPolicyStatusSync) scrapeAllNodes(
 	return all
 }
 
-// correlateViolationsToWNPs groups scraped protobuf violations by the WNP
-// that owns the denying NetworkPolicy. Violations denied by a NetworkPolicy
-// that is not owned by any WNP are dropped. When a violation references a
-// denying NetworkPolicy that has been deleted, a warning is logged to help
-// operators detect orphaned violations.
+// correlateViolationsToWNPs groups scraped violations by the owning WNP.
+// Violations with no owning WNP are dropped; deleted denying NetPols log a warning.
 func (r *WorkloadNetworkPolicyStatusSync) correlateViolationsToWNPs(
 	ctx context.Context,
 	scraped []*agentv1.ViolationRecord,
@@ -294,10 +293,8 @@ func convertProtoViolation(v *agentv1.ViolationRecord) securityv1alpha1.Violatio
 	}
 }
 
-// parseWorkload extracts the OwnerKind and OwnerName from the first workload
-// string in the slice. Workloads are expected in "Kind/Name" format (e.g.
-// "Deployment/myapp"). If no separator is found the whole string is treated
-// as the name.
+// parseWorkload splits the first element of workloads at the first '/'.
+// Returns (kind, name) or ("", workload) if no separator is found.
 func parseWorkload(workloads []string) (string, string) {
 	if len(workloads) == 0 {
 		return "", ""
@@ -311,11 +308,10 @@ func parseWorkload(workloads []string) (string, string) {
 	return "", wl
 }
 
-// processWorkloadNetworkPolicy runs RecomputeStatus and writes the result via
-// a two-phase patch: status first, then metadata/annotations. Both patches
-// use a MergeFrom base so that any concurrent annotation change made between
-// the two calls is preserved. Acknowledged-violation telemetry is stored but
-// not emitted here — PR 4 wires the real OTLP log.
+// processWorkloadNetworkPolicy patches status then annotations using a
+// MergeFrom base. Acknowledged-violation OTLP logs are emitted only after
+// the status patch succeeds (ordering guard — prevents duplicate logs on
+// retry), matching the runtime-enforcer approach.
 func (r *WorkloadNetworkPolicyStatusSync) processWorkloadNetworkPolicy(
 	ctx context.Context,
 	wnp *securityv1alpha1.WorkloadNetworkPolicy,
@@ -339,17 +335,62 @@ func (r *WorkloadNetworkPolicyStatusSync) processWorkloadNetworkPolicy(
 			wnp.NamespacedName(), err)
 	}
 
+	r.emitAcknowledgedViolations(ctx, acknowledged)
+
 	if err := r.Patch(ctx, newPolicy.DeepCopy(), patchBase); err != nil {
 		return fmt.Errorf("failed to patch WorkloadNetworkPolicy annotations for %s: %w",
 			wnp.NamespacedName(), err)
 	}
 
-	// Acknowledgement telemetry is stubbed to a no-op in this PR.
-	// todo!: wire the real OTLP log emission here.
-	_ = acknowledged
-
 	return nil
 }
 
-// Ensure WorkloadNetworkPolicyStatusSync implements manager.Runnable.
+func (r *WorkloadNetworkPolicyStatusSync) emitAcknowledgedViolations(
+	ctx context.Context,
+	acknowledgements []securityv1alpha1.AcknowledgedViolationRecord,
+) {
+	if r.eventLogger == nil {
+		return
+	}
+	for _, ack := range acknowledgements {
+		r.emitAcknowledgedViolationOtelLog(ctx, ack)
+	}
+}
+
+func (r *WorkloadNetworkPolicyStatusSync) emitAcknowledgedViolationOtelLog(
+	ctx context.Context,
+	ack securityv1alpha1.AcknowledgedViolationRecord,
+) {
+	if r.eventLogger == nil {
+		return
+	}
+
+	violation := ack.Violation
+	var rec otellog.Record
+	rec.SetEventName(EventNamePolicyViolationAcknowledged)
+	rec.SetSeverity(otellog.SeverityInfo)
+	rec.SetBody(otellog.StringValue(EventNamePolicyViolationAcknowledged))
+	rec.SetTimestamp(time.Now())
+	rec.AddAttributes(
+		otellog.Int64("id", violation.ID),
+		otellog.String("timestamp", violation.Timestamp.UTC().Format(time.RFC3339)),
+		otellog.String("reason", ack.Reason),
+		otellog.String("direction", violation.Direction),
+		otellog.String("source.namespace", violation.Source.Namespace),
+		otellog.String("source.workload.kind", violation.Source.OwnerKind),
+		otellog.String("source.workload.name", violation.Source.OwnerName),
+		otellog.String("dest.namespace", violation.Dest.Namespace),
+		otellog.String("dest.workload.kind", violation.Dest.OwnerKind),
+		otellog.String("dest.workload.name", violation.Dest.OwnerName),
+		otellog.String("protocol", string(violation.Protocol)),
+		otellog.Int64("dstPort", int64(violation.DstPort)),
+		otellog.String("action", violation.Action),
+		otellog.String("node.name", violation.NodeName),
+		otellog.String("denyingPolicy.namespace", violation.DenyingPolicyNamespace),
+		otellog.String("denyingPolicy.name", violation.DenyingPolicyName),
+	)
+
+	r.eventLogger.Emit(ctx, rec)
+}
+
 var _ manager.Runnable = (*WorkloadNetworkPolicyStatusSync)(nil)
