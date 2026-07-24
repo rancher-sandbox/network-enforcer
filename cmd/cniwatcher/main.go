@@ -35,18 +35,18 @@ func grpcConfigFromFlags() cniwatcher.GRPCServerConfig {
 func newOtelService(ctx context.Context, logger *slog.Logger, grpcConfig cniwatcher.GRPCServerConfig) *otel.Service {
 	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if otlpEndpoint == "" {
-		logger.Info("OTLP endpoint not set, OpenTelemetry disabled")
+		logger.InfoContext(ctx, "OTLP endpoint not set, OpenTelemetry disabled")
 		return nil
 	}
 	otelCfg := otel.OpenTelemetryConfig{
 		Ctx:               ctx,
 		Log:               logger,
 		CollectorEndpoint: otlpEndpoint,
-		CertDir: grpcConfig.CertDir,
+		CertDir:           grpcConfig.CertDir,
 	}
 	svc := otel.NewOpenTelemetryService(otelCfg)
 	if err := svc.Start(); err != nil {
-		logger.Warn("Failed to start OpenTelemetry", "err", err)
+		logger.WarnContext(ctx, "Failed to start OpenTelemetry", "err", err)
 		return nil
 	}
 	return svc
