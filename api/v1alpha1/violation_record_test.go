@@ -80,7 +80,7 @@ func (r ViolationRecord) withProtocol(proto corev1.Protocol) ViolationRecord {
 }
 
 // withAction returns a copy with a different action.
-func (r ViolationRecord) withAction(action string) ViolationRecord {
+func (r ViolationRecord) withAction(action WorkloadNetworkPolicyMode) ViolationRecord {
 	r.Action = action
 	return r
 }

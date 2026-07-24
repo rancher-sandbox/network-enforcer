@@ -417,7 +417,7 @@ func TestConvertProtoViolation(t *testing.T) {
 	require.Equal(t, "dst-svc", rec.Dest.OwnerName)
 	require.Equal(t, corev1.ProtocolTCP, rec.Protocol)
 	require.Equal(t, int32(80), rec.DstPort)
-	require.Equal(t, "protect", rec.Action)
+	require.Equal(t, securityv1alpha1.WorkloadNetworkPolicyModeProtect, rec.Action)
 	require.Equal(t, "policy-ns", rec.DenyingPolicyNamespace)
 	require.Equal(t, "policy-name", rec.DenyingPolicyName)
 }

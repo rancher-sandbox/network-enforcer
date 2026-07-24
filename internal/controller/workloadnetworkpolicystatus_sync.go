@@ -69,17 +69,15 @@ func NewWorkloadNetworkPolicyStatusSync(
 // context is cancelled.
 func (r *WorkloadNetworkPolicyStatusSync) Start(ctx context.Context) error {
 	r.logger = log.FromContext(ctx).WithName("WorkloadNetworkPolicyStatusSync")
-	r.logger.Info("Starting", "interval", r.updateInterval)
-
-	ticker := time.NewTicker(r.updateInterval)
-	defer ticker.Stop()
+	interval := r.updateInterval
+	r.logger.Info("Starting with", "interval", interval.String())
 
 	for {
 		select {
 		case <-ctx.Done():
 			r.logger.Info("Closing")
 			return nil
-		case <-ticker.C:
+		case <-time.After(interval):
 			if err := r.sync(ctx); err != nil {
 				r.logger.Error(err, "Failed to sync")
 			}
@@ -288,7 +286,7 @@ func convertProtoViolation(v *agentv1.ViolationRecord) securityv1alpha1.Violatio
 		Dest:                   dest,
 		Protocol:               corev1.Protocol(v.GetProtocol()),
 		DstPort:                v.GetDstPort(),
-		Action:                 v.GetAction(),
+		Action:                 securityv1alpha1.WorkloadNetworkPolicyMode(v.GetAction()),
 		DenyingPolicyNamespace: v.GetDenyingPolicyNamespace(),
 		DenyingPolicyName:      v.GetDenyingPolicyName(),
 	}

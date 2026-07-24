@@ -33,7 +33,7 @@ type ViolationRecordKey struct {
 	DstOwnerName           string
 	Protocol               string
 	DstPort                int32
-	Action                 string
+	Action                 WorkloadNetworkPolicyMode
 	DenyingPolicyNamespace string
 	DenyingPolicyName      string
 }

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	securityv1alpha1 "github.com/rancher-sandbox/network-enforcer/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -28,7 +29,7 @@ type ViolationRecord struct {
 
 	Protocol corev1.Protocol
 	DstPort  int32
-	Action   string // "protect"
+	Action   securityv1alpha1.WorkloadNetworkPolicyMode
 
 	DenyingPolicyNamespace string
 	DenyingPolicyName      string

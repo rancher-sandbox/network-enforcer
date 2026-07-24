@@ -94,17 +94,15 @@ type ViolationRecord struct {
 	// Dest is the workload that received the traffic.
 	// +optional
 	Dest WorkloadRef `json:"dest,omitempty"`
-	// Protocol is the L4 protocol (TCP, UDP, SCTP, ICMP …).
+	// Protocol is the L4 protocol (TCP, UDP, SCTP).
 	Protocol corev1.Protocol `json:"protocol"`
-	// DstPort is the destination port. 0 when unavailable (ICMP, or backends
-	// that don't expose it).
+	// DstPort is the destination port. 0 when unavailable.
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=65535
 	// +optional
 	DstPort int32 `json:"dstPort,omitempty"`
-	// Action is the enforcement action ("protect", the only mode that produces
-	// denies).
-	Action string `json:"action"`
+	// Action is the enforcement action taken (monitor or protect).
+	Action WorkloadNetworkPolicyMode `json:"action"`
 	// DenyingPolicyNamespace is the namespace of the NetworkPolicy that denied
 	// the flow.
 	// +optional

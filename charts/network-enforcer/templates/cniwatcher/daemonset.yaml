@@ -5,20 +5,16 @@ metadata:
   name: {{ include "network-enforcer.fullname" . }}-cniwatcher
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: {{ include "network-enforcer.name" . }}-cniwatcher
-    app.kubernetes.io/part-of: {{ include "network-enforcer.name" . }}
     {{- include "network-enforcer.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "network-enforcer.name" . }}-cniwatcher
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- include "network-enforcer.cniwatcher.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "network-enforcer.name" . }}-cniwatcher
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/part-of: {{ include "network-enforcer.name" . }}
+        app.kubernetes.io/component: cniwatcher
+        {{- include "network-enforcer.labels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "network-enforcer.fullname" . }}-cniwatcher
       securityContext: {{- toYaml .Values.cniwatcher.podSecurityContext | nindent 8 }}

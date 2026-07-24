@@ -42,6 +42,8 @@ type AgentClientPool struct {
 // service-account token file.
 func getNamespace() (string, error) {
 	const namespaceNamePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	// Get the agent namespace from the system.
+	// We suppose we are always running inside the same namespace of the cniwatcher.
 	data, err := os.ReadFile(namespaceNamePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read namespace file: %w", err)
@@ -71,10 +73,6 @@ func NewAgentClientPool(poolConf AgentClientPoolConfig) (*AgentClientPool, error
 	factory, err := NewAgentClientFactory(&poolConf.AgentFactoryConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent client factory: %w", err)
-	}
-
-	if poolConf.Logger == nil {
-		poolConf.Logger = slog.Default()
 	}
 
 	return &AgentClientPool{
@@ -123,7 +121,6 @@ func (p *AgentClientPool) UpdatePool(ctx context.Context, reader client.Reader) 
 		}
 		delete(p.clients, node)
 	}
-
 	return p.clients, nil
 }
 

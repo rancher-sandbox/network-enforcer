@@ -46,27 +46,23 @@ import (
 )
 
 const (
-	defaultDrainFlowsInterval = 30 * time.Second
-	defaultStatusSyncInterval = 30 * time.Second
+	defaultDrainFlowsInterval      = 30 * time.Second
+	defaultWnpStatusUpdateInterval = 30 * time.Second
 )
 
 type config struct {
-	metricsAddr             string
-	metricsCertPath         string
-	metricsCertName         string
-	metricsCertKey          string
-	enableLeaderElection    bool
-	probeAddr               string
-	secureMetrics           bool
-	enableHTTP2             bool
-	otlpPort                int
-	drainFlowsInterval      time.Duration
-	statusSyncInterval      time.Duration
-	cniwatcherLabelSelector string
-	cniwatcherGRPCPort      int
-	cniwatcherNamespace     string
-	tlsCertDir              string
-	tlsOpts                 []func(*tls.Config)
+	metricsAddr          string
+	metricsCertPath      string
+	metricsCertName      string
+	metricsCertKey       string
+	enableLeaderElection bool
+	probeAddr            string
+	secureMetrics        bool
+	enableHTTP2          bool
+	otlpPort             int
+	drainFlowsInterval   time.Duration
+	tlsOpts              []func(*tls.Config)
+	wnpStatusSyncConfig  controller.WorkloadNetworkPolicyStatusSyncConfig
 }
 
 func newControllerManager(conf *config) (manager.Manager, error) {
@@ -121,7 +117,7 @@ func run(logger *slog.Logger, conf *config) error {
 	store := topology.NewStore()
 
 	// The OTLP receiver reuses the same pod cert dir as the ScrapeViolations client.
-	receiver := receiver.NewReceiver(store, conf.otlpPort, conf.tlsCertDir, logger)
+	receiver := receiver.NewReceiver(store, conf.otlpPort, conf.wnpStatusSyncConfig.AgentPoolConf.CertDirPath, logger)
 	err = mgr.Add(receiver)
 	if err != nil {
 		return fmt.Errorf("unable to add OTLP receiver to manager: %w", err)
@@ -147,25 +143,17 @@ func run(logger *slog.Logger, conf *config) error {
 		return fmt.Errorf("unable to setup WorkloadNetworkPolicyProposal controller: %w", err)
 	}
 
-	statusSync, err := controller.NewWorkloadNetworkPolicyStatusSync(
+	conf.wnpStatusSyncConfig.AgentPoolConf.Logger = logger.With("component", "agent-pool")
+	logger.Info("Setting up WorkloadNetworkPolicyStatusSync with",
+		"config", conf.wnpStatusSyncConfig)
+	var wnpStatusSync *controller.WorkloadNetworkPolicyStatusSync
+	if wnpStatusSync, err = controller.NewWorkloadNetworkPolicyStatusSync(
 		mgr.GetClient(),
-		&controller.WorkloadNetworkPolicyStatusSyncConfig{
-			AgentPoolConf: grpcexporter.AgentClientPoolConfig{
-				AgentFactoryConfig: grpcexporter.AgentFactoryConfig{
-					CertDirPath: conf.tlsCertDir,
-					Port:        conf.cniwatcherGRPCPort,
-				},
-				Namespace:           conf.cniwatcherNamespace,
-				LabelSelectorString: conf.cniwatcherLabelSelector,
-				Logger:              logger,
-			},
-			UpdateInterval: conf.statusSyncInterval,
-		},
-	)
-	if err != nil {
+		&conf.wnpStatusSyncConfig,
+	); err != nil {
 		return fmt.Errorf("unable to create WorkloadNetworkPolicyStatusSync: %w", err)
 	}
-	if err = mgr.Add(statusSync); err != nil {
+	if err = mgr.Add(wnpStatusSync); err != nil {
 		return fmt.Errorf("unable to add WorkloadNetworkPolicyStatusSync runnable: %w", err)
 	}
 
@@ -206,17 +194,25 @@ func main() {
 	flag.IntVar(&conf.otlpPort, "otlp-port", 4317, "The port the OTLP gRPC receiver listens on.")
 	flag.DurationVar(&conf.drainFlowsInterval, "drain-flows-interval",
 		defaultDrainFlowsInterval, "The interval at which flows are drained.")
-	flag.DurationVar(&conf.statusSyncInterval, "status-sync-interval",
-		defaultStatusSyncInterval, "The interval at which WorkloadNetworkPolicy status is synced with cniwatcher pods.")
-	flag.StringVar(&conf.cniwatcherLabelSelector, "cniwatcher-label-selector",
-		grpcexporter.DefaultCniwatcherLabelSelectorString, "Label selector to discover cniwatcher pods.")
-	flag.IntVar(&conf.cniwatcherGRPCPort, "cniwatcher-grpc-port",
+	flag.DurationVar(&conf.wnpStatusSyncConfig.UpdateInterval,
+		"wnp-status-reconciler-update-interval",
+		defaultWnpStatusUpdateInterval,
+		"The interval at which WorkloadNetworkPolicy status is synced with cniwatcher pods.")
+	flag.StringVar(
+		&conf.wnpStatusSyncConfig.AgentPoolConf.LabelSelectorString,
+		"wnp-status-reconciler-cniwatcher-label-selector",
+		grpcexporter.DefaultCniwatcherLabelSelectorString,
+		"Label selector to discover cniwatcher pods.",
+	)
+	flag.IntVar(&conf.wnpStatusSyncConfig.AgentPoolConf.Port, "wnp-status-reconciler-cniwatcher-grpc-port",
 		grpcexporter.DefaultAgentPort, "gRPC port of cniwatcher ScrapeViolations server.")
-	flag.StringVar(&conf.cniwatcherNamespace, "cniwatcher-namespace", "",
-		"Namespace where cniwatcher pods run (default: read from service account).")
-	flag.StringVar(&conf.tlsCertDir, "cniwatcher-tls-cert-dir", grpcexporter.DefaultCertDirPath,
+	flag.StringVar(
+		&conf.wnpStatusSyncConfig.AgentPoolConf.CertDirPath,
+		"wnp-status-reconciler-cniwatcher-grpc-mtls-cert-dir",
+		grpcexporter.DefaultCertDirPath,
 		"Directory containing tls.crt, tls.key, and ca.crt for mTLS with cniwatcher pods "+
-			"and the OTLP receiver. When empty, connections are insecure.")
+			"and the OTLP receiver. When empty, connections are insecure.",
+	)
 	flag.Parse()
 
 	slogHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})

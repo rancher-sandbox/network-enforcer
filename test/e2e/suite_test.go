@@ -105,7 +105,8 @@ func installNetEnforcerChart() env.Func {
 				testCfg.drainFlowsInterval.String())),
 			helm.WithArgs("--set", fmt.Sprintf("controller.drainFlowsInterval=%s",
 				testCfg.drainFlowsInterval.String())),
-
+			helm.WithArgs("--set", fmt.Sprintf("controller.wnpStatusUpdateInterval=%s",
+				testCfg.wnpStatusUpdateInterval.String())),
 			helm.WithWait(),
 			helm.WithTimeout(defaultHelmTimeout.String()),
 		}
