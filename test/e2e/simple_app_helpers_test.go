@@ -24,9 +24,9 @@ const (
 	simpleAppManifest             = "simple_app.yaml"
 	simpleAppClientDeploymentName = "http-client"
 	simpleAppServerDeploymentName = "http-server"
-	simpleAppTCPServicePort       = 18080
-	simpleAppUDPServicePort       = 18083
-	simpleAppUDPServerPort        = 18081
+	simpleAppTCPServicePort       = int32(18080)
+	simpleAppUDPServicePort       = int32(18083)
+	simpleAppUDPServerPort        = int32(18081)
 )
 
 func teardownSimpleAppWorkload(ctx context.Context, t *testing.T, _ *envconf.Config) context.Context {

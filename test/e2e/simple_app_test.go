@@ -78,7 +78,7 @@ func assessPolicyProposalsGenerated(ctx context.Context, t *testing.T, _ *envcon
 	const namespaceLabelKey = "kubernetes.io/metadata.name"
 	tcpProtocol := corev1.ProtocolTCP
 	udpProtocol := corev1.ProtocolUDP
-	dstPort := intstr.FromInt(simpleAppTCPServicePort)
+	dstPort := intstr.FromInt32(simpleAppTCPServicePort)
 	dnsPort := intstr.FromInt(53)
 
 	expectedClientEgressProposal := securityv1alpha1.WorkloadNetworkPolicyProposal{
