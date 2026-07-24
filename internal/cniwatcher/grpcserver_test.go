@@ -142,7 +142,7 @@ func TestProcessPolicyDenyEvent_RecordsToBuffer(t *testing.T) {
 		Timestamp:    1234567890,
 		NodeName:     "test-node",
 		CNIType:      "calico",
-		Protocol:     corev1.ProtocolTCP,
+		Protocol:     corev1.Protocol("tcp"), // we put a lower case on purpose to check if it gets normalized
 		SrcNamespace: "ns1",
 		SrcName:      "pod1",
 		DstNamespace: "ns2",
@@ -162,6 +162,7 @@ func TestProcessPolicyDenyEvent_RecordsToBuffer(t *testing.T) {
 	require.Equal(t, "egress", records[0].Direction)
 	require.Equal(t, "pod1", records[0].SrcName)
 	require.Equal(t, "svc1", records[0].DstName)
+	require.Equal(t, corev1.ProtocolTCP, records[0].Protocol)
 	require.Equal(t, int32(443), records[0].DstPort)
 	require.Equal(t, "protect", records[0].Action)
 	require.Equal(t, "deny-all", records[0].DenyingPolicyName)
