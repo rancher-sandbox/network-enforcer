@@ -15,19 +15,21 @@ import (
 
 func installCilium(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	const (
-		namespace     = "kube-system"
-		version       = "1.19.4"
-		daemonSetName = "cilium"
-		operatorName  = "cilium-operator"
-		repoLocalName = defaultNamespacePref + "-cilium"
-		repoURL       = "https://helm.cilium.io/"
-		chartPath     = "/cilium"
+		namespace      = "kube-system"
+		defaultVersion = "1.19.4"
+		daemonSetName  = "cilium"
+		operatorName   = "cilium-operator"
+		repoLocalName  = defaultNamespacePref + "-cilium"
+		repoURL        = "https://helm.cilium.io/"
+		chartPath      = "/cilium"
 	)
 
 	manager := helm.New(cfg.KubeconfigFile())
 	if err := addLocalChartRepo(ctx, manager, repoLocalName, repoURL); err != nil {
 		return ctx, err
 	}
+
+	version := getCNIVersion(ctx, defaultVersion)
 
 	helmOpts := []helm.Option{
 		helm.WithName("cilium"),

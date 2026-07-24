@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 		injectSuiteConfig(testSuiteConf),
 		injectSetupLogger(),
 		injectSecurityV1Alpha1Client(),
-		installCNI(testSuiteConf.cni),
+		installCNI(),
 		installCertManager(),
 		installNetEnforcerChart(&testSuiteConf),
 	}

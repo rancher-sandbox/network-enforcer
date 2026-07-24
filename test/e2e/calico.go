@@ -148,11 +148,13 @@ func installCalico(ctx context.Context, cfg *envconf.Config) (context.Context, e
 		releaseName      = "tigera-operator"
 		releaseNamespace = "tigera-operator"
 		calicoNamespace  = "calico-system"
-		version          = "v3.32.1"
+		defaultVersion   = "v3.32.1"
 		repoLocalName    = defaultNamespacePref + "-calico"
 		repoURL          = "https://docs.tigera.io/calico/charts"
 		chartPath        = "/tigera-operator"
 	)
+
+	version := getCNIVersion(ctx, defaultVersion)
 
 	manager := helm.New(cfg.KubeconfigFile())
 

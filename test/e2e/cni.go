@@ -15,15 +15,24 @@ const (
 	cilium cniType = "cilium"
 )
 
-func installCNI(t cniType) env.Func {
+func installCNI() env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-		switch t {
+		cni := getSuiteConfig(ctx).cni
+		switch cni {
 		case calico:
 			return installCalico(ctx, cfg)
 		case cilium:
 			return installCilium(ctx, cfg)
 		default:
-			return ctx, fmt.Errorf("unknown CNI type: %s", t)
+			return ctx, fmt.Errorf("unknown CNI type: %s", cni)
 		}
 	}
+}
+
+func getCNIVersion(ctx context.Context, defaultVersion string) string {
+	cniVersion := getSuiteConfig(ctx).cniVersion
+	if cniVersion != "" {
+		return cniVersion
+	}
+	return defaultVersion
 }
