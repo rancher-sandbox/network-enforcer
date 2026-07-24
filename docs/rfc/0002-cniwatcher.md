@@ -60,7 +60,7 @@ Kubernetes environments support various CNI plugins across clusters or even with
     - Cilium (via Hubble socket)
     - Flannel (log file parsing)
 - **Unified Log Format**: Transform raw logs into a common `PolicyDenyEvent` struct
-- **OpenTelemetry Exporter**: Emit flow logs as traces using gRPC to a configured OTeL collector
+- **OpenTelemetry Exporter**: Emit flow logs as OTLP logs using gRPC to a configured OTeL collector
 
 ## CNI-Specific Implementation Details
 
@@ -281,8 +281,7 @@ type PolicyDenyEvent struct {
 
 - Uses OpenTelemetry Go SDK for exporting events
 - Configurable export options:
-  - **Logs**: High-volume, detailed policy violation events
-  - **Traces**: Selected policy violations with context for investigation
+  - **Logs**: High-volume, detailed policy deny events
 - Supports multiple export protocols:
   - gRPC (default)
   - HTTP/Protobuf
@@ -299,7 +298,7 @@ flowchart TD
 
     A --> |collect flow log|B;
     B --> |transform raw log into unified log format|C;
-    C --> |emit flow logs as traces or logs using gRPC|D;
+    C --> |emit flow logs as OTLP logs using gRPC|D;
 
     subgraph "Node"
         A;

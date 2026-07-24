@@ -1,6 +1,6 @@
 # cniWatcher
 
-The cniWatcher DaemonSet watches CNI policy deny events (Calico Goldmane, Cilium Hubble, Flannel ulog, AWS VPC ENI logs) and exports them as OpenTelemetry traces.
+The cniWatcher DaemonSet watches CNI policy deny events (Calico Goldmane, Cilium Hubble, Flannel ulog, AWS VPC ENI logs) and exports them as OpenTelemetry logs.
 
 ## Build
 
@@ -20,7 +20,7 @@ helm upgrade --install network-enforcer ./charts/network-enforcer \
   --set cniwatcher.image.tag=<tag>
 ```
 
-Set `cniwatcher.otelEndpoint` to your OTLP trace collector. If empty, the chart defaults to `<release>-otlp.<namespace>.svc.cluster.local:4317`.
+Set `cniwatcher.otelEndpoint` to your OTLP log collector. If empty, the chart defaults to `<release>-otlp.<namespace>.svc.cluster.local:4317`.
 
 ## Local development (Tilt)
 
@@ -28,7 +28,7 @@ Set `cniwatcher.otelEndpoint` to your OTLP trace collector. If empty, the chart 
 2. Set `cniwatcher.cniType` (defaults to `calico` if omitted) and cluster context.
 3. Run `tilt up`.
 
-Tilt installs an OpenTelemetry collector in the `network-enforcer` namespace for trace debugging and builds the cniwatcher image with live reload.
+Tilt installs an OpenTelemetry collector in the `network-enforcer` namespace for log debugging and builds the cniwatcher image with live reload.
 
 ## Calico Goldmane proto
 
