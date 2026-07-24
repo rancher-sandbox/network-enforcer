@@ -369,8 +369,8 @@ func checkViolations(ctx context.Context, t *testing.T, _ *envconf.Config) conte
 			require.Len(t, policy.Status.Violations, 1)
 			// todo!: the violation count doesn't seem to match the number of packet dropped
 			// here we are dropping a single UDP packet but we see multiple violations.
-			require.GreaterOrEqual(t, policy.Status.ViolationCount, 1)
-			require.Equal(t, 1, policy.Status.ActiveViolationCount)
+			require.GreaterOrEqual(t, policy.Status.ViolationCount, int64(1))
+			require.Equal(t, int64(1), policy.Status.ActiveViolationCount)
 			violation := policy.Status.Violations[0]
 			require.Equal(t, "egress", violation.Direction)
 			require.Equal(t, corev1.ProtocolUDP, violation.Protocol)
