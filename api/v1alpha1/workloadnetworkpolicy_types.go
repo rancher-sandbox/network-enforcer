@@ -94,10 +94,9 @@ type ViolationRecord struct {
 	// Dest is the workload that received the traffic.
 	// +optional
 	Dest WorkloadRef `json:"dest,omitempty"`
-	// Protocol is the L4 protocol (TCP, UDP, SCTP, ICMP …).
+	// Protocol is the L4 protocol (TCP, UDP, SCTP).
 	Protocol corev1.Protocol `json:"protocol"`
-	// DstPort is the destination port. 0 when unavailable (ICMP, or backends
-	// that don't expose it).
+	// DstPort is the destination port. 0 when unavailable.
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=65535
 	// +optional
